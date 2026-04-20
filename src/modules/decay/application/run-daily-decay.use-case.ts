@@ -1,18 +1,20 @@
 import { Prisma } from "@prisma/client";
+import { randomUUID } from "node:crypto";
 import { prismaClient } from "@/shared/db/prisma-client";
 import { recalculateDecayForUser } from "@/modules/decay/application/decay-recalculation.service";
 import { generateRecommendationsForUser } from "@/modules/recommendations/application/generate-recommendations.use-case";
-import { startOfUtcDay } from "@/modules/decay/domain/time";
+import { addMinutes, startOfUtcDay } from "@/modules/decay/domain/time";
 
 const DAILY_DECAY_JOB_NAME = "daily_decay";
 const USER_BATCH_SIZE = 50;
-const RUNNING_STALE_TIMEOUT_MINUTES = 30;
-const MILLISECONDS_PER_MINUTE = 60_000;
-const RUNNING_STALE_TIMEOUT_MS =
-  RUNNING_STALE_TIMEOUT_MINUTES * MILLISECONDS_PER_MINUTE;
+const LEASE_DURATION_MINUTES = 45;
+const MAX_ACQUISITION_ATTEMPTS = 6;
+const WORKER_ID_PREFIX = "daily-decay-worker";
 
 export type RunDailyDecayInput = {
   now: Date;
+  workerId?: string;
+  currentTimeProvider?: () => Date;
 };
 
 export type RunDailyDecayResult = {
@@ -28,46 +30,162 @@ function isUniqueConstraintError(error: unknown): boolean {
   );
 }
 
-function isStaleRunningRun(
-  updatedAt: Date,
-  now: Date,
-): boolean {
-  return now.getTime() - updatedAt.getTime() > RUNNING_STALE_TIMEOUT_MS;
+function buildWorkerId(): string {
+  return `${WORKER_ID_PREFIX}:${randomUUID()}`;
+}
+
+function isLeaseExpired(leaseExpiresAt: Date | null, now: Date): boolean {
+  if (!leaseExpiresAt) {
+    return true;
+  }
+  return leaseExpiresAt.getTime() <= now.getTime();
+}
+
+function nextLeaseExpiry(now: Date): Date {
+  return addMinutes(now, LEASE_DURATION_MINUTES);
+}
+
+async function tryAcquireExistingExpiredLease(input: {
+  jobRunId: string;
+  workerId: string;
+  now: Date;
+}): Promise<boolean> {
+  const updated = await prismaClient.systemJobRun.updateMany({
+    where: {
+      id: input.jobRunId,
+      status: "RUNNING",
+      OR: [
+        { leaseExpiresAt: null },
+        { leaseExpiresAt: { lte: input.now } },
+      ],
+    },
+    data: {
+      status: "RUNNING",
+      startedAt: input.now,
+      finishedAt: null,
+      failureReason: null,
+      processedUsers: 0,
+      impactedAttributes: 0,
+      lockedBy: input.workerId,
+      lockedAt: input.now,
+      leaseExpiresAt: nextLeaseExpiry(input.now),
+    },
+  });
+
+  return updated.count === 1;
+}
+
+async function tryAcquireFailedRun(input: {
+  jobRunId: string;
+  workerId: string;
+  now: Date;
+}): Promise<boolean> {
+  const updated = await prismaClient.systemJobRun.updateMany({
+    where: {
+      id: input.jobRunId,
+      status: "FAILED",
+    },
+    data: {
+      status: "RUNNING",
+      startedAt: input.now,
+      finishedAt: null,
+      failureReason: null,
+      processedUsers: 0,
+      impactedAttributes: 0,
+      lockedBy: input.workerId,
+      lockedAt: input.now,
+      leaseExpiresAt: nextLeaseExpiry(input.now),
+    },
+  });
+
+  return updated.count === 1;
+}
+
+async function tryCreateRun(input: {
+  jobDay: Date;
+  workerId: string;
+  now: Date;
+}): Promise<string | null> {
+  try {
+    const created = await prismaClient.systemJobRun.create({
+      data: {
+        jobName: DAILY_DECAY_JOB_NAME,
+        jobDay: input.jobDay,
+        status: "RUNNING",
+        startedAt: input.now,
+        lockedBy: input.workerId,
+        lockedAt: input.now,
+        leaseExpiresAt: nextLeaseExpiry(input.now),
+      },
+      select: { id: true },
+    });
+    return created.id;
+  } catch (error: unknown) {
+    if (isUniqueConstraintError(error)) {
+      return null;
+    }
+    throw error;
+  }
+}
+
+async function renewLease(input: {
+  jobRunId: string;
+  workerId: string;
+  now: Date;
+  processedUsers: number;
+  impactedAttributes: number;
+}): Promise<void> {
+  const renewed = await prismaClient.systemJobRun.updateMany({
+    where: {
+      id: input.jobRunId,
+      status: "RUNNING",
+      lockedBy: input.workerId,
+      leaseExpiresAt: { gt: input.now },
+    },
+    data: {
+      processedUsers: input.processedUsers,
+      impactedAttributes: input.impactedAttributes,
+      lockedAt: input.now,
+      leaseExpiresAt: nextLeaseExpiry(input.now),
+    },
+  });
+
+  if (renewed.count !== 1) {
+    throw new Error("Daily decay lease lost by worker.");
+  }
 }
 
 export async function runDailyDecayUseCase(input: RunDailyDecayInput): Promise<RunDailyDecayResult> {
   const jobDay = startOfUtcDay(input.now);
+  const workerId = input.workerId ?? buildWorkerId();
+  const currentTime = input.currentTimeProvider ?? (() => new Date());
 
-  const existingRun = await prismaClient.systemJobRun.findUnique({
-    where: {
-      jobName_jobDay: {
-        jobName: DAILY_DECAY_JOB_NAME,
-        jobDay,
-      },
-    },
-  });
+  let jobRunId: string | null = null;
 
-  if (existingRun?.status === "SUCCEEDED" || existingRun?.status === "RUNNING") {
-    if (
-      existingRun.status === "RUNNING" &&
-      isStaleRunningRun(existingRun.updatedAt, input.now)
-    ) {
-      await prismaClient.systemJobRun.update({
-        where: { id: existingRun.id },
-        data: {
-          status: "FAILED",
-          finishedAt: input.now,
-          failureReason: `stale_running_timeout_${RUNNING_STALE_TIMEOUT_MINUTES}m`,
+  for (let attempt = 0; attempt < MAX_ACQUISITION_ATTEMPTS; attempt += 1) {
+    const now = currentTime();
+    const existingRun = await prismaClient.systemJobRun.findUnique({
+      where: {
+        jobName_jobDay: {
+          jobName: DAILY_DECAY_JOB_NAME,
+          jobDay,
         },
-      });
+      },
+    });
 
-      console.warn("[hexis.jobs.daily_decay] stale_run_recovered", {
-        jobRunId: existingRun.id,
-        updatedAt: existingRun.updatedAt.toISOString(),
-        now: input.now.toISOString(),
-        timeoutMinutes: RUNNING_STALE_TIMEOUT_MINUTES,
+    if (!existingRun) {
+      jobRunId = await tryCreateRun({
+        jobDay,
+        workerId,
+        now,
       });
-    } else {
+      if (jobRunId) {
+        break;
+      }
+      continue;
+    }
+
+    if (existingRun.status === "SUCCEEDED") {
       return {
         processedUsers: existingRun.processedUsers,
         impactedAttributes: existingRun.impactedAttributes,
@@ -75,78 +193,88 @@ export async function runDailyDecayUseCase(input: RunDailyDecayInput): Promise<R
         jobRunId: existingRun.id,
       };
     }
+
+    if (existingRun.status === "RUNNING") {
+      const leaseExpired = isLeaseExpired(existingRun.leaseExpiresAt, now);
+
+      if (!leaseExpired && existingRun.lockedBy !== workerId) {
+        return {
+          processedUsers: existingRun.processedUsers,
+          impactedAttributes: existingRun.impactedAttributes,
+          skipped: true,
+          jobRunId: existingRun.id,
+        };
+      }
+
+      if (existingRun.lockedBy === workerId && !leaseExpired) {
+        return {
+          processedUsers: existingRun.processedUsers,
+          impactedAttributes: existingRun.impactedAttributes,
+          skipped: true,
+          jobRunId: existingRun.id,
+        };
+      }
+
+      const recovered = await tryAcquireExistingExpiredLease({
+        jobRunId: existingRun.id,
+        workerId,
+        now,
+      });
+
+      if (recovered) {
+        console.warn("[hexis.jobs.daily_decay] expired_lease_recovered", {
+          jobRunId: existingRun.id,
+          workerId,
+          now: now.toISOString(),
+        });
+        jobRunId = existingRun.id;
+        break;
+      }
+
+      continue;
+    }
+
+    const restarted = await tryAcquireFailedRun({
+      jobRunId: existingRun.id,
+      workerId,
+      now,
+    });
+
+    if (restarted) {
+      jobRunId = existingRun.id;
+      break;
+    }
   }
 
-  const runAfterStaleRecovery = await prismaClient.systemJobRun.findUnique({
-    where: {
-      jobName_jobDay: {
-        jobName: DAILY_DECAY_JOB_NAME,
-        jobDay,
+  if (!jobRunId) {
+    const existingRun = await prismaClient.systemJobRun.findUnique({
+      where: {
+        jobName_jobDay: {
+          jobName: DAILY_DECAY_JOB_NAME,
+          jobDay,
+        },
       },
-    },
-  });
+    });
 
-  if (runAfterStaleRecovery?.status === "SUCCEEDED" || runAfterStaleRecovery?.status === "RUNNING") {
+    if (!existingRun) {
+      throw new Error("Unable to acquire daily decay lease.");
+    }
+
     return {
-      processedUsers: runAfterStaleRecovery.processedUsers,
-      impactedAttributes: runAfterStaleRecovery.impactedAttributes,
+      processedUsers: existingRun.processedUsers,
+      impactedAttributes: existingRun.impactedAttributes,
       skipped: true,
-      jobRunId: runAfterStaleRecovery.id,
+      jobRunId: existingRun.id,
     };
   }
 
-  let jobRunId: string;
-
-  if (runAfterStaleRecovery?.status === "FAILED") {
-    const restarted = await prismaClient.systemJobRun.update({
-      where: { id: runAfterStaleRecovery.id },
-      data: {
-        status: "RUNNING",
-        startedAt: input.now,
-        finishedAt: null,
-        failureReason: null,
-        processedUsers: 0,
-        impactedAttributes: 0,
-      },
-    });
-    jobRunId = restarted.id;
-  } else {
-    try {
-      const created = await prismaClient.systemJobRun.create({
-        data: {
-          jobName: DAILY_DECAY_JOB_NAME,
-          jobDay,
-          status: "RUNNING",
-          startedAt: input.now,
-        },
-      });
-      jobRunId = created.id;
-    } catch (error: unknown) {
-      if (!isUniqueConstraintError(error)) {
-        throw error;
-      }
-
-      const concurrentRun = await prismaClient.systemJobRun.findUnique({
-        where: {
-          jobName_jobDay: {
-            jobName: DAILY_DECAY_JOB_NAME,
-            jobDay,
-          },
-        },
-      });
-
-      if (!concurrentRun) {
-        throw error;
-      }
-
-      return {
-        processedUsers: concurrentRun.processedUsers,
-        impactedAttributes: concurrentRun.impactedAttributes,
-        skipped: true,
-        jobRunId: concurrentRun.id,
-      };
-    }
-  }
+  await renewLease({
+    jobRunId,
+    workerId,
+    now: currentTime(),
+    processedUsers: 0,
+    impactedAttributes: 0,
+  });
 
   let processedUsers = 0;
   let impactedAttributes = 0;
@@ -155,6 +283,8 @@ export async function runDailyDecayUseCase(input: RunDailyDecayInput): Promise<R
   console.info("[hexis.jobs.daily_decay] started", {
     jobRunId,
     jobDay: jobDay.toISOString(),
+    workerId,
+    leaseDurationMinutes: LEASE_DURATION_MINUTES,
   });
 
   try {
@@ -176,42 +306,63 @@ export async function runDailyDecayUseCase(input: RunDailyDecayInput): Promise<R
       }
 
       for (const user of users) {
+        await renewLease({
+          jobRunId,
+          workerId,
+          now: currentTime(),
+          processedUsers,
+          impactedAttributes,
+        });
+
         const result = await recalculateDecayForUser({ userId: user.id, now: input.now });
         impactedAttributes += result.affectedAttributes;
         await generateRecommendationsForUser({ userId: user.id, now: input.now });
-      }
+        processedUsers += 1;
 
-      processedUsers += users.length;
-      cursorId = users[users.length - 1]?.id;
-
-      await prismaClient.systemJobRun.update({
-        where: { id: jobRunId },
-        data: {
+        await renewLease({
+          jobRunId,
+          workerId,
+          now: currentTime(),
           processedUsers,
           impactedAttributes,
-        },
-      });
+        });
+      }
+
+      cursorId = users[users.length - 1]?.id;
 
       console.info("[hexis.jobs.daily_decay] batch_processed", {
         jobRunId,
+        workerId,
         batchSize: users.length,
         processedUsers,
         impactedAttributes,
       });
     }
 
-    await prismaClient.systemJobRun.update({
-      where: { id: jobRunId },
+    const completed = await prismaClient.systemJobRun.updateMany({
+      where: {
+        id: jobRunId,
+        status: "RUNNING",
+        lockedBy: workerId,
+      },
       data: {
         status: "SUCCEEDED",
-        finishedAt: new Date(),
+        finishedAt: currentTime(),
         processedUsers,
         impactedAttributes,
+        lockedBy: null,
+        lockedAt: null,
+        leaseExpiresAt: null,
       },
     });
 
+    if (completed.count !== 1) {
+      throw new Error("Daily decay lease lost before completion.");
+    }
+
     console.info("[hexis.jobs.daily_decay] finished", {
       jobRunId,
+      workerId,
       processedUsers,
       impactedAttributes,
     });
@@ -225,19 +376,27 @@ export async function runDailyDecayUseCase(input: RunDailyDecayInput): Promise<R
   } catch (error: unknown) {
     const failureReason = error instanceof Error ? error.message : "unknown_error";
 
-    await prismaClient.systemJobRun.update({
-      where: { id: jobRunId },
+    await prismaClient.systemJobRun.updateMany({
+      where: {
+        id: jobRunId,
+        status: "RUNNING",
+        lockedBy: workerId,
+      },
       data: {
         status: "FAILED",
-        finishedAt: new Date(),
+        finishedAt: currentTime(),
         processedUsers,
         impactedAttributes,
         failureReason,
+        lockedBy: null,
+        lockedAt: null,
+        leaseExpiresAt: null,
       },
     });
 
     console.error("[hexis.jobs.daily_decay] failed", {
       jobRunId,
+      workerId,
       processedUsers,
       impactedAttributes,
       failureReason,

@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { PASSWORD_MIN_LENGTH } from "@/modules/auth/domain/auth.constants";
 import { hashPassword } from "@/modules/auth/infrastructure/password.service";
@@ -15,21 +16,34 @@ export type SignupInput = z.infer<typeof signupInputSchema>;
 
 export async function signupUseCase(input: SignupInput): Promise<{ sessionToken: string }> {
   const parsed = signupInputSchema.parse(input);
-  const existingUser = await prismaClient.user.findUnique({ where: { email: parsed.email } });
-  if (existingUser) {
-    throw new Error("Email already registered");
-  }
-
   const passwordHash = await hashPassword(parsed.password);
-  const user = await prismaClient.user.create({
-    data: {
-      email: parsed.email,
-      passwordHash,
-    },
+  const user = await prismaClient.$transaction(async (transactionClient) => {
+    try {
+      const createdUser = await transactionClient.user.create({
+        data: {
+          email: parsed.email,
+          passwordHash,
+        },
+      });
+
+      await bootstrapUser(transactionClient, {
+        userId: createdUser.id,
+        displayName: parsed.displayName,
+      });
+
+      return createdUser;
+    } catch (error: unknown) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      ) {
+        throw new Error("Email already registered");
+      }
+      throw error;
+    }
   });
 
-  await bootstrapUser({ userId: user.id, displayName: parsed.displayName });
-
+  // Session is intentionally created after atomic user bootstrap.
   const sessionToken = await createSessionForUser(user.id);
   return { sessionToken };
 }

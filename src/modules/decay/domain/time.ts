@@ -2,11 +2,16 @@ const HOURS_PER_DAY = 24;
 const MINUTES_PER_HOUR = 60;
 const SECONDS_PER_MINUTE = 60;
 const MILLISECONDS_PER_SECOND = 1000;
+const MILLISECONDS_PER_MINUTE = SECONDS_PER_MINUTE * MILLISECONDS_PER_SECOND;
 const MILLISECONDS_PER_DAY =
-  HOURS_PER_DAY * MINUTES_PER_HOUR * SECONDS_PER_MINUTE * MILLISECONDS_PER_SECOND;
+  HOURS_PER_DAY * MINUTES_PER_HOUR * MILLISECONDS_PER_MINUTE;
 
 export function addDays(date: Date, days: number): Date {
   return new Date(date.getTime() + days * MILLISECONDS_PER_DAY);
+}
+
+export function addMinutes(date: Date, minutes: number): Date {
+  return new Date(date.getTime() + minutes * MILLISECONDS_PER_MINUTE);
 }
 
 export function fullDaysBetween(older: Date, newer: Date): number {

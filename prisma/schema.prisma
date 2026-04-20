@@ -298,6 +298,9 @@ model SystemJobRun {
   jobName             String
   jobDay              DateTime
   status              JobRunStatus
+  lockedBy            String?
+  lockedAt            DateTime?
+  leaseExpiresAt      DateTime?
   startedAt           DateTime
   finishedAt          DateTime?
   processedUsers      Int          @default(0)

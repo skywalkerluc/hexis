@@ -57,4 +57,47 @@ describe.sequential("integration: signup + bootstrap", () => {
     expect(focus?.baseValue.toNumber()).toBe(10);
     expect(focus?.potentialValue.toNumber()).toBe(15.8);
   });
+
+  test("rolls back user creation when bootstrap fails", async () => {
+    const { signupUseCase } = await import("@/modules/auth/application/signup.use-case");
+    const failingEmail = "bootstrap-fail@hexis.app";
+
+    await prisma.avatarOption.deleteMany({});
+
+    await expect(
+      signupUseCase({
+        email: failingEmail,
+        password: "very-strong-password",
+        displayName: "Should Fail",
+      }),
+    ).rejects.toThrow("No avatar option found");
+
+    const persistedUser = await prisma.user.findUnique({
+      where: { email: failingEmail },
+      include: {
+        profile: true,
+        userAttributes: true,
+      },
+    });
+
+    expect(persistedUser).toBeNull();
+
+    const orphanProfiles = await prisma.profile.count({
+      where: {
+        user: {
+          email: failingEmail,
+        },
+      },
+    });
+    const orphanAttributes = await prisma.userAttribute.count({
+      where: {
+        user: {
+          email: failingEmail,
+        },
+      },
+    });
+
+    expect(orphanProfiles).toBe(0);
+    expect(orphanAttributes).toBe(0);
+  });
 });

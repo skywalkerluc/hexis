@@ -1,4 +1,4 @@
-import { prismaClient } from "@/shared/db/prisma-client";
+import type { Prisma } from "@prisma/client";
 import { DEFAULT_TIMEZONE } from "@/shared/kernel/scoring.constants";
 
 export type BootstrapUserInput = {
@@ -6,8 +6,13 @@ export type BootstrapUserInput = {
   displayName: string;
 };
 
-export async function bootstrapUser(input: BootstrapUserInput): Promise<void> {
-  const avatar = await prismaClient.avatarOption.findFirst({
+const INITIAL_CONSISTENCY_SCORE = 0;
+
+export async function bootstrapUser(
+  transactionClient: Prisma.TransactionClient,
+  input: BootstrapUserInput,
+): Promise<void> {
+  const avatar = await transactionClient.avatarOption.findFirst({
     orderBy: { sortOrder: "asc" },
     select: { id: true },
   });
@@ -16,11 +21,11 @@ export async function bootstrapUser(input: BootstrapUserInput): Promise<void> {
     throw new Error("No avatar option found. Run prisma seed first.");
   }
 
-  const definitions = await prismaClient.attributeDefinition.findMany({
+  const definitions = await transactionClient.attributeDefinition.findMany({
     orderBy: { name: "asc" },
   });
 
-  await prismaClient.profile.create({
+  await transactionClient.profile.create({
     data: {
       userId: input.userId,
       displayName: input.displayName,
@@ -30,18 +35,20 @@ export async function bootstrapUser(input: BootstrapUserInput): Promise<void> {
     },
   });
 
-  for (const definition of definitions) {
-    await prismaClient.userAttribute.create({
-      data: {
-        userId: input.userId,
-        attributeDefinitionId: definition.id,
-        currentValue: definition.defaultCurrentValue,
-        baseValue: definition.defaultBaseValue,
-        potentialValue: definition.defaultPotentialValue,
-        minValue: definition.scaleMin,
-        maxValue: definition.scaleMax,
-        consistencyScore: 0,
-      },
-    });
+  const createdAttributes = await transactionClient.userAttribute.createMany({
+    data: definitions.map((definition) => ({
+      userId: input.userId,
+      attributeDefinitionId: definition.id,
+      currentValue: definition.defaultCurrentValue,
+      baseValue: definition.defaultBaseValue,
+      potentialValue: definition.defaultPotentialValue,
+      minValue: definition.scaleMin,
+      maxValue: definition.scaleMax,
+      consistencyScore: INITIAL_CONSISTENCY_SCORE,
+    })),
+  });
+
+  if (createdAttributes.count !== definitions.length) {
+    throw new Error("Failed to bootstrap user attributes.");
   }
 }

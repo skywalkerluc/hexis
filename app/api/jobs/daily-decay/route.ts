@@ -9,6 +9,16 @@ export async function POST(request: Request): Promise<Response> {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const result = await runDailyDecayUseCase({ now: new Date() });
+  const workerId = request.headers.get("x-hexis-worker-id");
+  const result = await runDailyDecayUseCase(
+    workerId
+      ? {
+          now: new Date(),
+          workerId,
+        }
+      : {
+          now: new Date(),
+        },
+  );
   return NextResponse.json(result);
 }
