@@ -104,13 +104,13 @@ async function AttributeDetailPage({
       <section className="hexis-card mt-5 p-5 sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h2 className="text-3xl font-semibold">{attribute.name}</h2>
-            <p className="mt-2 max-w-3xl text-sm text-[var(--color-muted)]">{attribute.description}</p>
+            <h2 className="text-2xl font-semibold sm:text-3xl">{attribute.name}</h2>
+            <p className="mt-1 max-w-3xl text-sm text-[var(--color-muted)]">{attribute.description}</p>
           </div>
           <StatusBadge status={attribute.status} />
         </div>
 
-        <div className="mt-6 grid gap-4 sm:grid-cols-3">
+        <div className="mt-4 grid gap-3 sm:grid-cols-3">
           <Metric label="Current" value={attribute.currentValue.toFixed(1)} />
           <Metric label="Base" value={attribute.baseValue.toFixed(1)} />
           <Metric label="Potential" value={attribute.potentialValue.toFixed(1)} />
@@ -124,7 +124,7 @@ async function AttributeDetailPage({
           />
         </div>
 
-        <div className="mt-5 grid gap-3 sm:grid-cols-3">
+        <div className="mt-4 grid gap-3 sm:grid-cols-3">
           <InfoPill
             label="Last event"
             value={attribute.lastEventAt ? attribute.lastEventAt.toLocaleString() : "No evidence yet"}
@@ -138,46 +138,48 @@ async function AttributeDetailPage({
             value={`${currentDelta >= 0 ? "+" : ""}${currentDelta.toFixed(2)}`}
           />
         </div>
-      </section>
-
-      <section className="hexis-card mt-6 p-5 sm:p-6">
-        <p className="hexis-eyebrow">How to read this attribute</p>
-        <div className="mt-3 grid gap-3">
-          <ExplainRow
-            label="Current"
-            description="Responds fastest to your recent behavior."
-          />
-          <ExplainRow
-            label="Base"
-            description="Moves slower and reflects durable conditioning."
-          />
-          <ExplainRow
-            label="Potential"
-            description="Hardest to change and defines your sustainable ceiling."
-          />
-          <ExplainRow
-            label="Maintenance vs decay"
-            description="Regular evidence keeps current near base; long neglect lowers current first, then can erode base."
-          />
-        </div>
-      </section>
-
-      <section className="hexis-card mt-6 p-5 sm:p-6">
-        <p className="hexis-eyebrow">Recent influence</p>
-        <p className="mt-2 text-sm text-[var(--color-muted)]">
+        <p className="mt-3 text-sm text-[var(--color-muted)]">
           {buildInfluenceInterpretation({
             state: attributeState,
             daysSinceEvidence,
           })}
         </p>
+      </section>
+
+      <section className="hexis-card mt-6 p-5 sm:p-6">
+        <p className="hexis-eyebrow">What to do next</p>
+        {recommendations[0] ? (
+          <ul className="mt-3 space-y-3">
+            <RecommendationItem
+              recommendation={recommendations[0]}
+              allowActions={recommendations[0].status === "ACTIVE"}
+            />
+          </ul>
+        ) : (
+          <div className="mt-3 rounded-md border bg-[var(--color-background)] p-3">
+            <p className="text-sm text-[var(--color-muted)]">
+              No active recommendation right now. Log one focused block to refresh guidance.
+            </p>
+            <Link
+              href="/log"
+              className="mt-3 inline-flex min-h-10 items-center rounded-md border px-3 py-2 text-xs text-[var(--color-muted)] hover:text-[var(--color-foreground)]"
+            >
+              Log evidence
+            </Link>
+          </div>
+        )}
+      </section>
+
+      <section className="hexis-card mt-6 p-5 sm:p-6">
+        <p className="hexis-eyebrow">Recent influence</p>
         <div className="mt-4 grid gap-3 md:grid-cols-2">
           <div className="rounded-md border bg-[var(--color-background)] p-4">
             <p className="text-xs uppercase tracking-wide text-[var(--color-muted)]">Helping recently</p>
             {influences.helping.length === 0 ? (
-              <p className="mt-2 text-sm text-[var(--color-muted)]">No strong positive signal in recent evidence.</p>
+              <p className="mt-2 text-sm text-[var(--color-muted)]">No positive signal yet. A reinforcement log can establish one.</p>
             ) : (
               <ul className="mt-2 space-y-2">
-                {influences.helping.map((item) => (
+                {influences.helping.slice(0, 2).map((item) => (
                   <li key={item.eventId} className="text-sm">
                     <span className="font-medium">{item.title}</span>
                     <span className="text-[var(--color-muted)]"> · +{item.deltaCurrent.toFixed(2)} current</span>
@@ -192,7 +194,7 @@ async function AttributeDetailPage({
               <p className="mt-2 text-sm text-[var(--color-muted)]">No strong negative signal in recent evidence.</p>
             ) : (
               <ul className="mt-2 space-y-2">
-                {influences.hurting.map((item) => (
+                {influences.hurting.slice(0, 2).map((item) => (
                   <li key={item.eventId} className="text-sm">
                     <span className="font-medium">{item.title}</span>
                     <span className="text-[var(--color-muted)]"> · {item.deltaCurrent.toFixed(2)} current</span>
@@ -202,34 +204,54 @@ async function AttributeDetailPage({
             )}
           </div>
         </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Link
+            href="/history"
+            className="inline-flex min-h-10 items-center rounded-md border px-3 py-2 text-xs text-[var(--color-muted)] hover:text-[var(--color-foreground)]"
+          >
+            Open full history
+          </Link>
+          <Link
+            href="/log"
+            className="inline-flex min-h-10 items-center rounded-md border px-3 py-2 text-xs text-[var(--color-muted)] hover:text-[var(--color-foreground)]"
+          >
+            Log evidence
+          </Link>
+        </div>
       </section>
 
-      <div className="mt-6 grid gap-6 xl:grid-cols-12">
-        <aside className="space-y-6 xl:col-span-4">
-          <div className="hexis-card p-4 sm:p-5">
-            <p className="hexis-eyebrow">Recommendation state</p>
-            <ul className="mt-3 space-y-3">
-              {recommendations.length === 0 ? (
-                <li className="text-sm text-[var(--color-muted)]">No recommendation history for this attribute.</li>
-              ) : (
-                recommendations.map((recommendation) => (
-                  <RecommendationItem
-                    key={recommendation.id}
-                    recommendation={recommendation}
-                    allowActions={recommendation.status === "ACTIVE"}
-                  />
-                ))
-              )}
-            </ul>
+      <details className="hexis-card mt-6 p-5 sm:p-6">
+        <summary className="cursor-pointer text-sm font-medium">Deep dive</summary>
+        <div className="mt-4 space-y-5">
+          <div>
+            <p className="hexis-eyebrow">How to read this attribute</p>
+            <div className="mt-3 grid gap-3">
+              <ExplainRow
+                label="Current"
+                description="Responds fastest to your recent behavior."
+              />
+              <ExplainRow
+                label="Base"
+                description="Moves slower and reflects durable conditioning."
+              />
+              <ExplainRow
+                label="Potential"
+                description="Hardest to change and defines your sustainable ceiling."
+              />
+              <ExplainRow
+                label="Maintenance vs decay"
+                description="Regular evidence keeps current near base; long neglect lowers current first, then can erode base."
+              />
+            </div>
           </div>
-        </aside>
 
-        <section className="xl:col-span-8 space-y-6">
-          <div className="hexis-card p-4 sm:p-5">
+          <div>
             <p className="hexis-eyebrow">Recent evidence</p>
             <ul className="mt-3 space-y-2">
               {recentEvents.length === 0 ? (
-                <li className="text-sm text-[var(--color-muted)]">No direct evidence linked yet.</li>
+                <li className="rounded-md border bg-[var(--color-background)] p-3 text-sm text-[var(--color-muted)]">
+                  No direct evidence yet. <Link href="/log" className="underline">Log one block</Link> to establish a reliable signal.
+                </li>
               ) : (
                 recentEvents.map((event) => (
                   <li key={event.id} className="rounded-md border bg-[var(--color-background)] p-3">
@@ -243,35 +265,50 @@ async function AttributeDetailPage({
             </ul>
           </div>
 
-          <div className="hexis-card p-5 sm:p-6">
-            <div className="flex flex-wrap items-end justify-between gap-2">
-              <div>
-                <p className="hexis-eyebrow">History log</p>
-                <p className="mt-1 text-xs text-[var(--color-muted)]">Every change includes a cause and explicit deltas.</p>
-              </div>
-              {history.length > recentHistory.length ? (
-                <Link href="/history" className="text-xs text-[var(--color-muted)]">
-                  Open full history
-                </Link>
-              ) : null}
-            </div>
-            <ul className="mt-4 space-y-3">
-              {recentHistory.map((entry) => (
-                <li key={entry.id} className="rounded-md border bg-[var(--color-background)] p-3 sm:p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <p className="text-xs uppercase tracking-wider text-[var(--color-muted)]">{entry.causeType}</p>
-                    <p className="text-xs text-[var(--color-muted)]">{entry.changedAt.toLocaleString()}</p>
-                  </div>
-                  <p className="mt-2 text-sm">{entry.explanation}</p>
-                  <p className="mt-2 text-xs text-[var(--color-muted)]">
-                    Cur {entry.previousCurrent.toFixed(2)} → {entry.nextCurrent.toFixed(2)} · Base {entry.previousBase.toFixed(2)} → {entry.nextBase.toFixed(2)} · Pot {entry.previousPotential.toFixed(2)} → {entry.nextPotential.toFixed(2)}
-                  </p>
+          <div>
+            <p className="hexis-eyebrow">History log</p>
+            <ul className="mt-3 space-y-3">
+              {recentHistory.length === 0 ? (
+                <li className="rounded-md border bg-[var(--color-background)] p-3 text-sm text-[var(--color-muted)]">
+                  No history yet for this attribute.
                 </li>
-              ))}
+              ) : (
+                recentHistory.map((entry) => (
+                  <li key={entry.id} className="rounded-md border bg-[var(--color-background)] p-3 sm:p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <p className="text-xs uppercase tracking-wider text-[var(--color-muted)]">{entry.causeType}</p>
+                      <p className="text-xs text-[var(--color-muted)]">{entry.changedAt.toLocaleString()}</p>
+                    </div>
+                    <p className="mt-2 text-sm">{entry.explanation}</p>
+                    <p className="mt-2 text-xs text-[var(--color-muted)]">
+                      Cur {entry.previousCurrent.toFixed(2)} → {entry.nextCurrent.toFixed(2)} · Base {entry.previousBase.toFixed(2)} → {entry.nextBase.toFixed(2)} · Pot {entry.previousPotential.toFixed(2)} → {entry.nextPotential.toFixed(2)}
+                    </p>
+                  </li>
+                ))
+              )}
             </ul>
           </div>
-        </section>
-      </div>
+
+          <div>
+            <p className="hexis-eyebrow">Recommendation history</p>
+            <ul className="mt-3 space-y-3">
+              {recommendations.length === 0 ? (
+                <li className="rounded-md border bg-[var(--color-background)] p-3 text-sm text-[var(--color-muted)]">
+                  No recommendation history for this attribute yet.
+                </li>
+              ) : (
+                recommendations.map((recommendation) => (
+                  <RecommendationItem
+                    key={recommendation.id}
+                    recommendation={recommendation}
+                    allowActions={recommendation.status === "ACTIVE"}
+                  />
+                ))
+              )}
+            </ul>
+          </div>
+        </div>
+      </details>
     </AppShell>
   );
 }

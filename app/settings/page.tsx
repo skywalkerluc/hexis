@@ -18,29 +18,25 @@ async function SettingsPage() {
     >
       <div className="space-y-5">
         <section className="hexis-card p-6">
-          <h2 className="text-lg font-semibold">Security</h2>
+          <h2 className="text-lg font-semibold">Account status</h2>
           <p className="mt-2 text-sm text-[var(--color-muted)]">
-            Session cookie status: {hasSessionCookie ? "active" : "not active"}.
+            Current session: {hasSessionCookie ? "active on this device" : "not active"}.
           </p>
           <p className="mt-2 text-sm text-[var(--color-muted)]">
-            Password reset and session revocation are tracked in the v1 readiness checklist.
+            Need account help? Use feedback to request password reset or session support.
           </p>
+          <Link
+            href="/feedback?from=/settings"
+            className="mt-3 inline-flex min-h-10 items-center rounded-md border px-3 py-2 text-sm text-[var(--color-muted)] hover:text-[var(--color-foreground)]"
+          >
+            Request account help
+          </Link>
         </section>
 
         <section className="hexis-card p-6">
-          <h2 className="text-lg font-semibold">Readiness</h2>
+          <h2 className="text-lg font-semibold">Product feedback</h2>
           <p className="mt-2 text-sm text-[var(--color-muted)]">
-            Daily decay processing endpoint is available at <code>/api/jobs/daily-decay</code> and protected by job secret header.
-          </p>
-          <p className="mt-2 text-sm text-[var(--color-muted)]">
-            v1 checklist: <code>docs/v1-readiness-checklist.md</code>.
-          </p>
-        </section>
-
-        <section className="hexis-card p-6">
-          <h2 className="text-lg font-semibold">Feedback</h2>
-          <p className="mt-2 text-sm text-[var(--color-muted)]">
-            Found friction or ambiguity? Send short product feedback linked to the exact surface.
+            Share friction, ambiguity, or improvement ideas linked to this screen.
           </p>
           <Link
             href="/feedback?from=/settings"
@@ -49,6 +45,13 @@ async function SettingsPage() {
             Open feedback form
           </Link>
         </section>
+
+        <details className="hexis-card p-6">
+          <summary className="cursor-pointer text-sm font-medium">Release readiness notes</summary>
+          <p className="mt-3 text-sm text-[var(--color-muted)]">
+            Operational checklist and background readiness notes are kept in <code>docs/v1-readiness-checklist.md</code>.
+          </p>
+        </details>
       </div>
     </AppShell>
   );
