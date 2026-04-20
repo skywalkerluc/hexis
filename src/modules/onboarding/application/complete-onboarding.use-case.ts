@@ -17,9 +17,14 @@ export type CompleteOnboardingInput = {
   templateKey: string;
 };
 
+export type CompleteOnboardingResult = {
+  templateKey: string;
+  templateLabel: string;
+};
+
 export async function completeOnboardingUseCase(
   input: CompleteOnboardingInput,
-): Promise<void> {
+): Promise<CompleteOnboardingResult> {
   const [template, profile] = await Promise.all([
     prismaClient.onboardingTemplate.findUnique({
       where: { key: input.templateKey },
@@ -168,4 +173,9 @@ export async function completeOnboardingUseCase(
     }
     throw error;
   }
+
+  return {
+    templateKey: template.key,
+    templateLabel: template.label,
+  };
 }

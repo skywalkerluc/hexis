@@ -5,6 +5,8 @@ import {
   applyRecommendationUseCase,
   dismissRecommendationUseCase,
 } from "@/modules/recommendations/application/update-recommendation-status.use-case";
+import { trackProductEventSafely } from "@/modules/analytics/application/track-product-event-safe";
+import { PRODUCT_EVENT_NAME } from "@/modules/analytics/domain/product-event-catalog";
 import { requireOnboardedUser } from "@/shared/auth/route-guards";
 
 function parseRecommendationId(formData: FormData): string {
@@ -30,6 +32,11 @@ export async function dismissRecommendationAction(formData: FormData): Promise<v
     recommendationId,
     now: new Date(),
   });
+  await trackProductEventSafely({
+    eventName: PRODUCT_EVENT_NAME.RECOMMENDATION_DISMISSED,
+    userId: user.id,
+    properties: { recommendationId },
+  });
 
   revalidateRecommendationSurfaces();
 }
@@ -42,6 +49,11 @@ export async function applyRecommendationAction(formData: FormData): Promise<voi
     userId: user.id,
     recommendationId,
     now: new Date(),
+  });
+  await trackProductEventSafely({
+    eventName: PRODUCT_EVENT_NAME.RECOMMENDATION_APPLIED,
+    userId: user.id,
+    properties: { recommendationId },
   });
 
   revalidateRecommendationSurfaces();

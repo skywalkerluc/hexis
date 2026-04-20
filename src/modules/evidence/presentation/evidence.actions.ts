@@ -5,6 +5,8 @@ import { INITIAL_LOG_EVIDENCE_FORM_STATE } from "./evidence.types";
 import type { LogEvidenceFormState } from "./evidence.types";
 import { createEvidenceEventUseCase } from "@/modules/evidence/application/create-evidence-event.use-case";
 import { generateRecommendationsForUser } from "@/modules/recommendations/application/generate-recommendations.use-case";
+import { trackProductEventSafely } from "@/modules/analytics/application/track-product-event-safe";
+import { PRODUCT_EVENT_NAME } from "@/modules/analytics/domain/product-event-catalog";
 import { requireOnboardedUser } from "@/shared/auth/route-guards";
 import { prismaClient } from "@/shared/db/prisma-client";
 
@@ -14,6 +16,8 @@ const TITLE_MIN_LENGTH = 3;
 const TITLE_MAX_LENGTH = 160;
 const NOTES_MAX_LENGTH = 2000;
 const SUCCESS_IMPACT_PREVIEW_LIMIT = 5;
+const FIRST_EVIDENCE_LOG_SEQUENCE = 1;
+const SECOND_EVIDENCE_LOG_SEQUENCE = 2;
 
 const evidenceSubmissionSchema = z.object({
   title: z.string().min(TITLE_MIN_LENGTH).max(TITLE_MAX_LENGTH),
@@ -97,11 +101,25 @@ export async function submitEvidenceEventAction(
   });
 
   if (!parsed.success) {
+    await trackProductEventSafely({
+      eventName: PRODUCT_EVENT_NAME.LOG_SUBMIT_FAILED,
+      userId: user.id,
+      properties: {
+        reason: "validation",
+      },
+    });
     return buildValidationErrorState(parsed);
   }
 
   const occurredAt = new Date(parsed.data.occurredAt);
   if (Number.isNaN(occurredAt.getTime())) {
+    await trackProductEventSafely({
+      eventName: PRODUCT_EVENT_NAME.LOG_SUBMIT_FAILED,
+      userId: user.id,
+      properties: {
+        reason: "invalid_occurred_at",
+      },
+    });
     return invalidDateState();
   }
 
@@ -117,6 +135,42 @@ export async function submitEvidenceEventAction(
     });
 
     await generateRecommendationsForUser({ userId: user.id, now: new Date() });
+
+    const evidenceCount = await prismaClient.evidenceEvent.count({
+      where: { userId: user.id },
+    });
+    const impactedAttributeCount = parsed.data.userAttributeIds.length;
+    await trackProductEventSafely({
+      eventName: PRODUCT_EVENT_NAME.LOG_SUBMIT_SUCCEEDED,
+      userId: user.id,
+      properties: {
+        eventType: parsed.data.eventType,
+        intensity: parsed.data.intensity,
+        impactedAttributeCount,
+      },
+    });
+    if (evidenceCount === FIRST_EVIDENCE_LOG_SEQUENCE) {
+      await trackProductEventSafely({
+        eventName: PRODUCT_EVENT_NAME.FIRST_EVIDENCE_LOG_CREATED,
+        userId: user.id,
+        properties: {
+          eventType: parsed.data.eventType,
+          intensity: parsed.data.intensity,
+          impactedAttributeCount,
+        },
+      });
+    }
+    if (evidenceCount === SECOND_EVIDENCE_LOG_SEQUENCE) {
+      await trackProductEventSafely({
+        eventName: PRODUCT_EVENT_NAME.SECOND_EVIDENCE_LOG_CREATED,
+        userId: user.id,
+        properties: {
+          eventType: parsed.data.eventType,
+          intensity: parsed.data.intensity,
+          impactedAttributeCount,
+        },
+      });
+    }
 
     const persistedEvent = await prismaClient.evidenceEvent.findUnique({
       where: { id: result.eventId },
@@ -166,6 +220,13 @@ export async function submitEvidenceEventAction(
       },
     };
   } catch (error: unknown) {
+    await trackProductEventSafely({
+      eventName: PRODUCT_EVENT_NAME.LOG_SUBMIT_FAILED,
+      userId: user.id,
+      properties: {
+        reason: "server",
+      },
+    });
     const message = error instanceof Error ? error.message : "Could not record evidence.";
     return {
       status: "error",

@@ -2,6 +2,8 @@
 
 import { redirect } from "next/navigation";
 import { completeOnboardingUseCase } from "@/modules/onboarding/application/complete-onboarding.use-case";
+import { trackProductEventSafely } from "@/modules/analytics/application/track-product-event-safe";
+import { PRODUCT_EVENT_NAME } from "@/modules/analytics/domain/product-event-catalog";
 import { requireAppUser } from "@/shared/auth/route-guards";
 
 export async function completeOnboardingAction(formData: FormData): Promise<void> {
@@ -11,9 +13,17 @@ export async function completeOnboardingAction(formData: FormData): Promise<void
     throw new Error("Template key missing");
   }
 
-  await completeOnboardingUseCase({
+  const result = await completeOnboardingUseCase({
     userId: user.id,
     templateKey: templateKeyValue,
+  });
+  await trackProductEventSafely({
+    eventName: PRODUCT_EVENT_NAME.ONBOARDING_COMPLETED,
+    userId: user.id,
+    properties: {
+      templateKey: result.templateKey,
+      templateLabel: result.templateLabel,
+    },
   });
 
   redirect("/dashboard");

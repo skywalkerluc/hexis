@@ -14,7 +14,12 @@ export const signupInputSchema = z.object({
 
 export type SignupInput = z.infer<typeof signupInputSchema>;
 
-export async function signupUseCase(input: SignupInput): Promise<{ sessionToken: string }> {
+export type SignupResult = {
+  sessionToken: string;
+  userId: string;
+};
+
+export async function signupUseCase(input: SignupInput): Promise<SignupResult> {
   const parsed = signupInputSchema.parse(input);
   const passwordHash = await hashPassword(parsed.password);
   const user = await prismaClient.$transaction(async (transactionClient) => {
@@ -45,5 +50,8 @@ export async function signupUseCase(input: SignupInput): Promise<{ sessionToken:
 
   // Session is intentionally created after atomic user bootstrap.
   const sessionToken = await createSessionForUser(user.id);
-  return { sessionToken };
+  return {
+    sessionToken,
+    userId: user.id,
+  };
 }

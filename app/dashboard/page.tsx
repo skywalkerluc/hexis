@@ -6,10 +6,19 @@ import { requireOnboardedUser } from "@/shared/auth/route-guards";
 import { readDashboard } from "@/modules/attributes/application/read-dashboard.query";
 import { syncCultivationStateAction } from "@/modules/decay/presentation/sync.actions";
 import { RecommendationItem } from "@/modules/recommendations/presentation/components/recommendation-item";
+import { trackProductEventSafely } from "@/modules/analytics/application/track-product-event-safe";
+import { PRODUCT_EVENT_NAME } from "@/modules/analytics/domain/product-event-catalog";
 
 async function DashboardPage() {
   const user = await requireOnboardedUser();
   const dashboard = await readDashboard(user.id);
+  await trackProductEventSafely({
+    eventName: PRODUCT_EVENT_NAME.DASHBOARD_VIEWED,
+    userId: user.id,
+    properties: {
+      source: "app",
+    },
+  });
   const atRiskOrDecaying = dashboard.attributes
     .filter((attribute) => attribute.status === "AT_RISK" || attribute.status === "DECAYING")
     .slice(0, 4);

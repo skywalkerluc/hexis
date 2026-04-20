@@ -7,6 +7,8 @@ import { readUserAttributeDetail } from "@/modules/attributes/application/read-a
 import { readAttributeHistory, readEvidenceHistory } from "@/modules/evidence/application/read-history.query";
 import { readRecommendationsForAttribute } from "@/modules/recommendations/application/read-recommendations.query";
 import { RecommendationItem } from "@/modules/recommendations/presentation/components/recommendation-item";
+import { trackProductEventSafely } from "@/modules/analytics/application/track-product-event-safe";
+import { PRODUCT_EVENT_NAME } from "@/modules/analytics/domain/product-event-catalog";
 import { requireOnboardedUser } from "@/shared/auth/route-guards";
 
 async function AttributeDetailPage({
@@ -21,6 +23,13 @@ async function AttributeDetailPage({
   if (!attribute) {
     notFound();
   }
+  await trackProductEventSafely({
+    eventName: PRODUCT_EVENT_NAME.ATTRIBUTE_DETAIL_VIEWED,
+    userId: user.id,
+    properties: {
+      attributeSlug: attribute.slug,
+    },
+  });
 
   const [history, events, recommendations] = await Promise.all([
     readAttributeHistory(user.id, attribute.userAttributeId),

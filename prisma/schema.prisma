@@ -65,6 +65,7 @@ model User {
   historyLogs       AttributeHistoryLog[]
   recommendations   Recommendation[]
   onboardingAnswers UserOnboarding?
+  analyticsEvents   ProductAnalyticsEvent[]
 }
 
 model AuthSession {
@@ -311,4 +312,18 @@ model SystemJobRun {
 
   @@unique([jobName, jobDay])
   @@index([jobName, status])
+}
+
+model ProductAnalyticsEvent {
+  id         String   @id @default(cuid())
+  eventName  String
+  userId     String?
+  properties Json
+  occurredAt DateTime
+  createdAt  DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([eventName, occurredAt])
+  @@index([userId, occurredAt])
 }

@@ -1,11 +1,20 @@
 import { AppShell } from "@/modules/shared/presentation/components/app-shell";
 import { readUserAttributes } from "@/modules/attributes/application/read-attributes.query";
 import { LogEvidenceForm } from "@/modules/evidence/presentation/components/log-evidence-form";
+import { trackProductEventSafely } from "@/modules/analytics/application/track-product-event-safe";
+import { PRODUCT_EVENT_NAME } from "@/modules/analytics/domain/product-event-catalog";
 import { requireOnboardedUser } from "@/shared/auth/route-guards";
 
 async function LogPage() {
   const user = await requireOnboardedUser();
   const attributes = await readUserAttributes(user.id);
+  await trackProductEventSafely({
+    eventName: PRODUCT_EVENT_NAME.LOG_PAGE_OPENED,
+    userId: user.id,
+    properties: {
+      source: "app",
+    },
+  });
 
   return (
     <AppShell

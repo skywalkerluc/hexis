@@ -10,7 +10,13 @@ export const loginInputSchema = z.object({
 
 export type LoginInput = z.infer<typeof loginInputSchema>;
 
-export async function loginUseCase(input: LoginInput): Promise<{ sessionToken: string }> {
+export type LoginResult = {
+  sessionToken: string;
+  userId: string;
+  signupAt: Date;
+};
+
+export async function loginUseCase(input: LoginInput): Promise<LoginResult> {
   const parsed = loginInputSchema.parse(input);
   const user = await prismaClient.user.findUnique({ where: { email: parsed.email } });
   if (!user) {
@@ -23,5 +29,9 @@ export async function loginUseCase(input: LoginInput): Promise<{ sessionToken: s
   }
 
   const sessionToken = await createSessionForUser(user.id);
-  return { sessionToken };
+  return {
+    sessionToken,
+    userId: user.id,
+    signupAt: user.createdAt,
+  };
 }

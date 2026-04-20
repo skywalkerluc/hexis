@@ -1,5 +1,7 @@
 import { completeOnboardingAction } from "@/modules/onboarding/presentation/onboarding.actions";
 import { readOnboardingTemplates } from "@/modules/onboarding/application/read-onboarding-data.query";
+import { trackProductEventSafely } from "@/modules/analytics/application/track-product-event-safe";
+import { PRODUCT_EVENT_NAME } from "@/modules/analytics/domain/product-event-catalog";
 import { requireAppUser } from "@/shared/auth/route-guards";
 import { redirect } from "next/navigation";
 
@@ -10,6 +12,13 @@ async function OnboardingPage() {
   }
 
   const templates = await readOnboardingTemplates();
+  await trackProductEventSafely({
+    eventName: PRODUCT_EVENT_NAME.ONBOARDING_STARTED,
+    userId: user.id,
+    properties: {
+      entryPoint: "onboarding_page",
+    },
+  });
 
   return (
     <div className="min-h-screen bg-[var(--color-background)] px-6 py-12">

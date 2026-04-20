@@ -9,6 +9,7 @@ const PRIMARY_DB_URL_ENV = "DATABASE_URL";
 const DEFAULT_TEST_DB_URL = "postgresql://lucasferreira@localhost:5432/hexis_test?schema=public";
 
 const TRUNCATE_TABLES: readonly string[] = [
+  '"ProductAnalyticsEvent"',
   '"AuthSession"',
   '"EvidenceEventImpact"',
   '"AttributeHistoryLog"',
