@@ -55,6 +55,7 @@ const DEFAULT_EVENT_TYPE = "TRAINING";
 const DEFAULT_INTENSITY = "MODERATE";
 const IMPACT_PREVIEW_LIMIT = 5;
 const GOAL_SUGGESTION_LIMIT = 3;
+const SUCCESS_IMPACT_PREVIEW_LIMIT = 3;
 
 type GoalGuidance = {
   label: string;
@@ -203,7 +204,9 @@ export function LogEvidenceForm({
           </p>
           {state.successSummary.impacts.length > 0 ? (
             <ul className="mt-2 space-y-1 text-xs text-[var(--color-muted)]">
-              {state.successSummary.impacts.map((impact: { attributeName: string; deltaCurrent: number }) => (
+              {state.successSummary.impacts
+                .slice(0, SUCCESS_IMPACT_PREVIEW_LIMIT)
+                .map((impact: { attributeName: string; deltaCurrent: number }) => (
                 <li key={impact.attributeName}>
                   {impact.attributeName}: {impact.deltaCurrent >= 0 ? "+" : ""}
                   {impact.deltaCurrent.toFixed(2)} current
@@ -212,9 +215,6 @@ export function LogEvidenceForm({
             </ul>
           ) : null}
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            <Link href="/history?logged=1" className="inline-flex min-h-10 items-center rounded-md border px-3 py-2 text-xs text-[var(--color-muted)] hover:text-[var(--color-foreground)]">
-              Review history
-            </Link>
             <Link href="/dashboard" className="inline-flex min-h-10 items-center rounded-md border px-3 py-2 text-xs text-[var(--color-muted)] hover:text-[var(--color-foreground)]">
               Continue to dashboard
             </Link>
@@ -232,6 +232,9 @@ export function LogEvidenceForm({
               Log another
             </button>
           </div>
+          <Link href="/history?logged=1" className="mt-2 inline-block text-xs text-[var(--color-muted)] underline underline-offset-2">
+            Review full history
+          </Link>
         </div>
       ) : null}
 
@@ -269,6 +272,47 @@ export function LogEvidenceForm({
         <div
           className="hexis-card p-4 sm:p-5"
           style={{
+            borderColor: hasTitleError ? "var(--color-critical)" : "var(--color-hairline)",
+            background: hasTitleError
+              ? "color-mix(in oklab, var(--color-critical) 7%, var(--color-surface))"
+              : "var(--color-surface)",
+          }}
+          ref={narrativeSectionRef}
+        >
+          <p className="hexis-eyebrow">What happened</p>
+          <label className="mt-2 block">
+            <span className="text-xs uppercase tracking-wider text-[var(--color-muted)]">Title</span>
+            <input
+              required
+              name="title"
+              className="mt-1.5 min-h-11 w-full rounded-md border bg-[var(--color-background)] px-3 py-2 text-sm"
+              placeholder="e.g. 90-minute deep work block"
+            />
+            {inlineErrorMessage(state, "title") ? (
+              <p className="mt-1 text-xs text-[var(--color-critical)]">
+                {inlineErrorMessage(state, "title")}
+              </p>
+            ) : null}
+          </label>
+
+          <details className="mt-4 rounded-md border bg-[var(--color-background)] p-3">
+            <summary className="cursor-pointer text-xs uppercase tracking-wider text-[var(--color-muted)]">
+              Add notes (optional)
+            </summary>
+            <label className="mt-3 block">
+              <textarea
+                name="notes"
+                rows={4}
+                className="w-full rounded-md border bg-[var(--color-background)] px-3 py-2 text-sm"
+                placeholder="What made this work, what to repeat next time"
+              />
+            </label>
+          </details>
+        </div>
+
+        <div
+          className="hexis-card p-4 sm:p-5"
+          style={{
             borderColor: hasOccurredAtError ? "var(--color-critical)" : "var(--color-hairline)",
             background: hasOccurredAtError
               ? "color-mix(in oklab, var(--color-critical) 7%, var(--color-surface))"
@@ -276,57 +320,61 @@ export function LogEvidenceForm({
           }}
           ref={timingSectionRef}
         >
-          <p className="hexis-eyebrow">Load and timing</p>
-          <div className="mt-3 grid gap-4 sm:grid-cols-2">
-            <div>
-              <span className="text-xs uppercase tracking-wider text-[var(--color-muted)]">Intensity</span>
-              <div className="mt-1.5 grid grid-cols-3 gap-2">
-                {INTENSITIES.map((item) => {
-                  const active = intensity === item.value;
-                  return (
-                    <label
-                      key={item.value}
-                      className="cursor-pointer rounded-md border px-3 py-2 text-center text-xs"
-                      style={{
-                        borderColor: active ? "var(--color-teal)" : "var(--color-hairline)",
-                        color: active ? "var(--color-foreground)" : "var(--color-muted)",
-                        background: active ? "var(--color-surface-raised)" : "var(--color-background)",
-                      }}
-                    >
-                      <input
-                        type="radio"
-                        name="intensity"
-                        value={item.value}
-                        checked={active}
-                        onChange={() => setIntensity(item.value)}
-                        className="sr-only"
-                      />
-                      {item.label}
-                    </label>
-                  );
-                })}
-              </div>
-              <p className="mt-2 text-xs text-[var(--color-muted)]">
-                {INTENSITIES.find((item) => item.value === intensity)?.description}
-              </p>
-            </div>
-
-            <label>
-              <span className="text-xs uppercase tracking-wider text-[var(--color-muted)]">Occurred at</span>
-              <input
-                required
-                name="occurredAt"
-                type="datetime-local"
-                defaultValue={occurredAtDefault}
-                className="mt-1.5 w-full rounded-md border bg-[var(--color-background)] px-3 py-2 text-sm"
-              />
-              {inlineErrorMessage(state, "occurredAt") ? (
-                <p className="mt-1 text-xs text-[var(--color-critical)]">
-                  {inlineErrorMessage(state, "occurredAt")}
+          <details>
+            <summary className="cursor-pointer text-xs uppercase tracking-wider text-[var(--color-muted)]">
+              Adjust load and timing (optional)
+            </summary>
+            <div className="mt-3 grid gap-4 sm:grid-cols-2">
+              <div>
+                <span className="text-xs uppercase tracking-wider text-[var(--color-muted)]">Intensity</span>
+                <div className="mt-1.5 grid grid-cols-3 gap-2">
+                  {INTENSITIES.map((item) => {
+                    const active = intensity === item.value;
+                    return (
+                      <label
+                        key={item.value}
+                        className="cursor-pointer rounded-md border px-3 py-2 text-center text-xs"
+                        style={{
+                          borderColor: active ? "var(--color-teal)" : "var(--color-hairline)",
+                          color: active ? "var(--color-foreground)" : "var(--color-muted)",
+                          background: active ? "var(--color-surface-raised)" : "var(--color-background)",
+                        }}
+                      >
+                        <input
+                          type="radio"
+                          name="intensity"
+                          value={item.value}
+                          checked={active}
+                          onChange={() => setIntensity(item.value)}
+                          className="sr-only"
+                        />
+                        {item.label}
+                      </label>
+                    );
+                  })}
+                </div>
+                <p className="mt-2 text-xs text-[var(--color-muted)]">
+                  {INTENSITIES.find((item) => item.value === intensity)?.description}
                 </p>
-              ) : null}
-            </label>
-          </div>
+              </div>
+
+              <label>
+                <span className="text-xs uppercase tracking-wider text-[var(--color-muted)]">Occurred at</span>
+                <input
+                  required
+                  name="occurredAt"
+                  type="datetime-local"
+                  defaultValue={occurredAtDefault}
+                  className="mt-1.5 min-h-11 w-full rounded-md border bg-[var(--color-background)] px-3 py-2 text-sm"
+                />
+                {inlineErrorMessage(state, "occurredAt") ? (
+                  <p className="mt-1 text-xs text-[var(--color-critical)]">
+                    {inlineErrorMessage(state, "occurredAt")}
+                  </p>
+                ) : null}
+              </label>
+            </div>
+          </details>
         </div>
 
         <div
@@ -412,40 +460,13 @@ export function LogEvidenceForm({
           ) : null}
         </div>
 
-        <div
-          className="hexis-card p-4 sm:p-5"
-          style={{
-            borderColor: hasTitleError ? "var(--color-critical)" : "var(--color-hairline)",
-            background: hasTitleError
-              ? "color-mix(in oklab, var(--color-critical) 7%, var(--color-surface))"
-              : "var(--color-surface)",
-          }}
-          ref={narrativeSectionRef}
-        >
-          <p className="hexis-eyebrow">Narrative</p>
-          <label className="mt-3 block">
-            <span className="text-xs uppercase tracking-wider text-[var(--color-muted)]">Title</span>
-            <input
-              required
-              name="title"
-              className="mt-1.5 w-full rounded-md border bg-[var(--color-background)] px-3 py-2 text-sm"
-              placeholder="e.g. 90-minute deep work block"
-            />
-            {inlineErrorMessage(state, "title") ? (
-              <p className="mt-1 text-xs text-[var(--color-critical)]">
-                {inlineErrorMessage(state, "title")}
-              </p>
-            ) : null}
-          </label>
-          <label className="mt-4 block">
-            <span className="text-xs uppercase tracking-wider text-[var(--color-muted)]">Notes</span>
-            <textarea
-              name="notes"
-              rows={4}
-              className="mt-1.5 w-full rounded-md border bg-[var(--color-background)] px-3 py-2 text-sm"
-              placeholder="What you did, what made it work, what to repeat next time"
-            />
-          </label>
+        <div className="lg:hidden">
+          <button
+            disabled={selectedAttributes.length === 0 || isPending}
+            className="min-h-11 w-full rounded-md bg-[var(--color-foreground)] px-4 py-3 text-sm font-medium text-[var(--color-background)] disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {isPending ? "Recording..." : "Record evidence"}
+          </button>
         </div>
       </section>
 

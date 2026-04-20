@@ -98,7 +98,7 @@ async function DashboardPage({
       displayName={user.profile?.displayName ?? user.email}
       actions={
         <div className="flex flex-wrap items-center justify-end gap-2">
-          <form action={syncCultivationStateAction}>
+          <form action={syncCultivationStateAction} className="hidden sm:block">
             <button className="min-h-11 rounded-md border px-3 py-2 text-sm text-[var(--color-muted)] hover:text-[var(--color-foreground)]">
               Sync state
             </button>
@@ -109,6 +109,66 @@ async function DashboardPage({
         </div>
       }
     >
+      {showActivationPanel && onboardingContext ? (
+        <section className="hexis-card mb-6 p-5 sm:p-6">
+          <p className="hexis-eyebrow">Activation</p>
+          <h2 className="mt-2 text-xl font-semibold">
+            Start with {onboardingContext.cultivationGoal.label}
+          </h2>
+          <p className="mt-2 max-w-3xl text-sm text-[var(--color-muted)]">
+            Hexis tracks how your attributes respond to evidence over time. Current moves fastest,
+            base shifts slower, potential changes slowest. Maintenance protects trend; neglect can
+            trigger decay.
+          </p>
+          <p className="mt-2 text-sm text-[var(--color-muted)]">
+            First action: log one concrete block aligned with {onboardingContext.cultivationGoal.label.toLowerCase()}.
+          </p>
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <Link
+              href={`/log?source=onboarding_activation&goal=${onboardingContext.cultivationGoal.value}`}
+              className="min-h-11 rounded-md bg-[var(--color-foreground)] px-4 py-2 text-sm text-[var(--color-background)]"
+            >
+              Log first meaningful evidence
+            </Link>
+            <Link href="/attributes" className="min-h-11 rounded-md border px-4 py-2 text-sm text-[var(--color-muted)]">
+              Review attribute model
+            </Link>
+          </div>
+        </section>
+      ) : null}
+
+      <section className="hexis-card mb-6 p-5 sm:p-6">
+        <h2 className="text-base font-semibold">What to do next</h2>
+        {primaryRecommendation ? (
+          <ul className="mt-3">
+            <RecommendationItem recommendation={primaryRecommendation} allowActions />
+          </ul>
+        ) : primaryAttentionAttribute ? (
+          <div className="mt-3 rounded-md border bg-[var(--color-background)] p-4">
+            <p className="text-sm font-medium">{primaryAttentionAttribute.name} needs attention.</p>
+            <p className="mt-1 text-xs text-[var(--color-muted)]">
+              Current {primaryAttentionAttribute.currentValue.toFixed(1)} is below stable base {primaryAttentionAttribute.baseValue.toFixed(1)}.
+            </p>
+            <Link
+              href={`/attributes/${primaryAttentionAttribute.slug}`}
+              className="mt-3 inline-flex min-h-10 items-center rounded-md border px-3 py-1.5 text-xs text-[var(--color-gold)]"
+            >
+              Open attribute detail
+            </Link>
+          </div>
+        ) : (
+          <p className="mt-3 text-sm text-[var(--color-muted)]">
+            No urgent drift right now. Keep momentum by logging your next meaningful block.
+          </p>
+        )}
+
+        <div className="mt-4 hidden gap-4 sm:grid sm:grid-cols-3">
+          <Stat label="Composite" value={`${dashboard.composite.toFixed(1)} / 20`} />
+          <Stat label="Improving" value={`${dashboard.improvingCount} attributes`} />
+          <Stat label="Needs care" value={`${dashboard.needsCareCount} attributes`} />
+        </div>
+      </section>
+
       <section className="hexis-card mb-6 p-5 sm:p-6">
         <div className="flex flex-wrap items-end justify-between gap-2">
           <div>
@@ -154,7 +214,7 @@ async function DashboardPage({
           {retentionView.sinceLastVisit.interpretation}
         </p>
         {retentionView.suggestedActions.length > 0 ? (
-          <div className="mt-4 grid gap-2 lg:grid-cols-2">
+          <div className="mt-4 hidden gap-2 sm:grid lg:grid-cols-2">
             {retentionView.suggestedActions.map((action) => (
               <div key={action.key} className="rounded-md border bg-[var(--color-background)] p-3">
                 <p className="text-sm font-medium">{action.title}</p>
@@ -173,66 +233,6 @@ async function DashboardPage({
         ) : null}
       </section>
 
-      {showActivationPanel && onboardingContext ? (
-        <section className="hexis-card mb-6 p-5 sm:p-6">
-          <p className="hexis-eyebrow">Activation</p>
-          <h2 className="mt-2 text-xl font-semibold">
-            Start with {onboardingContext.cultivationGoal.label}
-          </h2>
-          <p className="mt-2 max-w-3xl text-sm text-[var(--color-muted)]">
-            Hexis tracks how your attributes respond to evidence over time. Current moves fastest,
-            base shifts slower, potential changes slowest. Maintenance protects trend; neglect can
-            trigger decay.
-          </p>
-          <p className="mt-2 text-sm text-[var(--color-muted)]">
-            First action: log one concrete block aligned with {onboardingContext.cultivationGoal.label.toLowerCase()}.
-          </p>
-          <div className="mt-4 flex flex-wrap items-center gap-2">
-            <Link
-              href={`/log?source=onboarding_activation&goal=${onboardingContext.cultivationGoal.value}`}
-              className="min-h-11 rounded-md bg-[var(--color-foreground)] px-4 py-2 text-sm text-[var(--color-background)]"
-            >
-              Log first meaningful evidence
-            </Link>
-            <Link href="/attributes" className="min-h-11 rounded-md border px-4 py-2 text-sm text-[var(--color-muted)]">
-              Review attribute model
-            </Link>
-          </div>
-        </section>
-      ) : null}
-
-      <section className="hexis-card p-5 sm:p-6">
-        <p className="hexis-eyebrow">What to do next</p>
-        {primaryRecommendation ? (
-          <ul className="mt-3">
-            <RecommendationItem recommendation={primaryRecommendation} allowActions />
-          </ul>
-        ) : primaryAttentionAttribute ? (
-          <div className="mt-3 rounded-md border bg-[var(--color-background)] p-4">
-            <p className="text-sm font-medium">{primaryAttentionAttribute.name} needs attention.</p>
-            <p className="mt-1 text-xs text-[var(--color-muted)]">
-              Current {primaryAttentionAttribute.currentValue.toFixed(1)} is below stable base {primaryAttentionAttribute.baseValue.toFixed(1)}.
-            </p>
-            <Link
-              href={`/attributes/${primaryAttentionAttribute.slug}`}
-              className="mt-3 inline-flex rounded-md border px-3 py-1.5 text-xs text-[var(--color-gold)]"
-            >
-              Open attribute detail
-            </Link>
-          </div>
-        ) : (
-          <p className="mt-3 text-sm text-[var(--color-muted)]">
-            No urgent drift right now. Keep momentum by logging your next meaningful block.
-          </p>
-        )}
-
-        <div className="mt-4 grid gap-4 sm:grid-cols-3">
-          <Stat label="Composite" value={`${dashboard.composite.toFixed(1)} / 20`} />
-          <Stat label="Improving" value={`${dashboard.improvingCount} attributes`} />
-          <Stat label="Needs care" value={`${dashboard.needsCareCount} attributes`} />
-        </div>
-      </section>
-
       <section className="mt-6 grid gap-4 lg:grid-cols-2">
         <div className="hexis-card p-4 sm:p-5">
           <p className="hexis-eyebrow">Needs attention</p>
@@ -248,7 +248,7 @@ async function DashboardPage({
                       Current {attribute.currentValue.toFixed(1)} · Base {attribute.baseValue.toFixed(1)}
                     </p>
                   </div>
-                  <Link href={`/attributes/${attribute.slug}`} className="text-xs text-[var(--color-gold)]">
+                  <Link href={`/attributes/${attribute.slug}`} className="flex self-stretch items-center pl-4 text-xs text-[var(--color-gold)]">
                     Review
                   </Link>
                 </li>
@@ -318,7 +318,10 @@ async function DashboardPage({
 
         <aside className="space-y-6 xl:col-span-4">
           <div className="hexis-card p-4 sm:p-5">
-            <p className="hexis-eyebrow">Recent evidence</p>
+            <div className="flex items-center justify-between">
+              <p className="hexis-eyebrow">Recent evidence</p>
+              <Link href="/history" className="text-xs text-[var(--color-muted)] hover:text-[var(--color-foreground)]">View history</Link>
+            </div>
             {dashboard.recentEvents.length === 0 ? (
               <p className="mt-3 text-sm text-[var(--color-muted)]">
                 No recent evidence yet. Log one meaningful session to anchor your trend.

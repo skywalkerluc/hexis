@@ -48,7 +48,7 @@ async function WeeklyReviewPage() {
     <AppShell
       title="Weekly review"
       eyebrow="Retention"
-      currentPath="/dashboard"
+      currentPath="/weekly-review"
       displayName={user.profile?.displayName ?? user.email}
     >
       <section className="hexis-card mb-6 p-5 sm:p-6">

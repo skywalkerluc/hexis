@@ -14,7 +14,7 @@ const MOBILE_NAV_ITEMS: readonly { href: string; label: string }[] = [
   { href: "/dashboard", label: "Home" },
   { href: "/attributes", label: "Attributes" },
   { href: "/log", label: "Log" },
-  { href: "/history", label: "History" },
+  { href: "/weekly-review", label: "Review" },
   { href: "/profile", label: "Profile" },
 ] as const;
 
@@ -116,17 +116,12 @@ export function AppShell({
               {showFeedbackAction ? (
                 <Link
                   href={feedbackHref}
-                  className="min-h-10 rounded-md border px-2.5 py-1.5 text-xs text-[var(--color-muted)] hover:text-[var(--color-foreground)]"
+                  className="hidden min-h-10 rounded-md border px-2.5 py-1.5 text-xs text-[var(--color-muted)] hover:text-[var(--color-foreground)] sm:inline-flex sm:items-center"
                 >
                   Feedback
                 </Link>
               ) : null}
               {actions}
-              <form action={logoutAction} className="lg:hidden">
-                <button className="min-h-10 rounded-md border px-2.5 py-1.5 text-xs text-[var(--color-muted)]">
-                  Sign out
-                </button>
-              </form>
             </div>
           </div>
         </header>
@@ -144,7 +139,7 @@ export function AppShell({
               <li key={item.href}>
                 <Link
                   href={item.href}
-                  className="block min-h-11 rounded-md px-2 py-2.5 text-center text-xs"
+                  className="block min-h-12 rounded-md px-2 py-2.5 text-center text-xs"
                   style={{
                     color: active ? "var(--color-foreground)" : "var(--color-muted)",
                     background: active ? "var(--color-surface-raised)" : "transparent",

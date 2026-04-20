@@ -27,6 +27,15 @@ function lifecycleContext(recommendation: RecommendationView): string {
   return "Expired. It only returns if renewed risk appears.";
 }
 
+const RATIONALE_PREVIEW_MAX = 140;
+
+function compactRationale(text: string): string {
+  if (text.length <= RATIONALE_PREVIEW_MAX) {
+    return text;
+  }
+  return `${text.slice(0, RATIONALE_PREVIEW_MAX).trimEnd()}...`;
+}
+
 export function RecommendationItem({
   recommendation,
   allowActions,
@@ -38,18 +47,19 @@ export function RecommendationItem({
 }) {
   return (
     <li className="rounded-md border border-[var(--color-hairline)] bg-[var(--color-background)] p-3 sm:p-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm font-medium leading-snug">{recommendation.title}</p>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium leading-snug">{recommendation.title}</p>
+          <p className="mt-1 text-[11px] text-[var(--color-gold)]">
+            {recommendation.attributeName} · +{recommendation.expectedCurrentGain.toFixed(2)} expected current
+          </p>
+        </div>
         <span className="rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wide text-[var(--color-muted)]">
           {lifecycleLabel(recommendation)}
         </span>
       </div>
-      <p className="mt-1 text-xs text-[var(--color-muted)]">{lifecycleContext(recommendation)}</p>
-      <p className="mt-2 text-xs text-[var(--color-gold)]">
-        {recommendation.attributeName} · +{recommendation.expectedCurrentGain.toFixed(2)} expected current
-      </p>
-      <p className="mt-2 text-[11px] uppercase tracking-wide text-[var(--color-muted)]">Why now</p>
-      <p className="mt-1 text-sm leading-relaxed text-[var(--color-foreground)]">{recommendation.rationale}</p>
+      <p className="mt-2 text-xs text-[var(--color-muted)]">{lifecycleContext(recommendation)}</p>
+      <p className="mt-2 text-xs leading-relaxed text-[var(--color-foreground)]">{compactRationale(recommendation.rationale)}</p>
 
       {allowActions && recommendation.status === "ACTIVE" ? (
         <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">

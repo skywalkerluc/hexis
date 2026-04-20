@@ -1,8 +1,10 @@
+import Link from "next/link";
 import { AppShell } from "@/modules/shared/presentation/components/app-shell";
 import { AvatarGlyph } from "@/modules/shared/presentation/components/avatar-glyph";
 import { requireOnboardedUser } from "@/shared/auth/route-guards";
 import { readUserProfile } from "@/modules/users/application/read-profile.query";
 import { updateProfileAction } from "@/modules/users/presentation/profile.actions";
+import { logoutAction } from "@/modules/auth/presentation/auth.actions";
 
 async function ProfilePage() {
   const user = await requireOnboardedUser();
@@ -90,6 +92,20 @@ async function ProfilePage() {
           </div>
         </section>
       </form>
+
+      <div className="mt-6 flex flex-wrap items-center gap-3 sm:hidden">
+        <form action={logoutAction}>
+          <button className="min-h-11 rounded-md border px-4 py-2 text-sm text-[var(--color-muted)] hover:text-[var(--color-foreground)]">
+            Sign out
+          </button>
+        </form>
+        <Link
+          href="/feedback"
+          className="inline-flex min-h-11 items-center rounded-md border px-4 py-2 text-sm text-[var(--color-muted)] hover:text-[var(--color-foreground)]"
+        >
+          Send feedback
+        </Link>
+      </div>
     </AppShell>
   );
 }
