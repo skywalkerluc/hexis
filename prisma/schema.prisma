@@ -1,0 +1,308 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum EvidenceEventType {
+  TRAINING
+  PRACTICE
+  ROUTINE
+  ACHIEVEMENT
+  RECOVERY
+}
+
+enum EvidenceIntensity {
+  LIGHT
+  MODERATE
+  INTENSE
+}
+
+enum AttributeStatus {
+  IMPROVING
+  STABLE
+  DECAYING
+  AT_RISK
+}
+
+enum HistoryCauseType {
+  EVENT
+  DECAY
+  SYSTEM
+  MANUAL
+}
+
+enum RecommendationStatus {
+  ACTIVE
+  DISMISSED
+  APPLIED
+  EXPIRED
+}
+
+enum RecommendationKind {
+  MAINTENANCE_BLOCK
+}
+
+enum JobRunStatus {
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
+model User {
+  id                String               @id @default(cuid())
+  email             String               @unique
+  passwordHash      String
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  profile           Profile?
+  sessions          AuthSession[]
+  userAttributes    UserAttribute[]
+  evidenceEvents    EvidenceEvent[]
+  historyLogs       AttributeHistoryLog[]
+  recommendations   Recommendation[]
+  onboardingAnswers UserOnboarding?
+}
+
+model AuthSession {
+  id         String   @id @default(cuid())
+  userId     String
+  tokenHash  String   @unique
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Profile {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  displayName     String
+  avatarOptionId  String
+  timezone        String
+  onboardingDone  Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  avatarOption AvatarOption @relation(fields: [avatarOptionId], references: [id])
+}
+
+model AvatarOption {
+  id          String    @id @default(cuid())
+  code        String    @unique
+  label       String
+  background  String
+  ring        String
+  mark        String
+  sortOrder   Int
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  profiles    Profile[]
+}
+
+model AttributeDefinition {
+  id                     String               @id @default(cuid())
+  slug                   String               @unique
+  name                   String
+  shortCode              String
+  description            String
+  category               String
+  scaleMin               Decimal              @db.Decimal(5, 2)
+  scaleMax               Decimal              @db.Decimal(5, 2)
+  defaultCurrentValue    Decimal              @db.Decimal(5, 2)
+  defaultBaseValue       Decimal              @db.Decimal(5, 2)
+  defaultPotentialValue  Decimal              @db.Decimal(5, 2)
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
+  userAttributes         UserAttribute[]
+  impactRules            DecayProfile[]
+  recommendations        Recommendation[]
+  onboardingAssignments  OnboardingTemplateAttribute[]
+}
+
+model UserAttribute {
+  id                   String                 @id @default(cuid())
+  userId               String
+  attributeDefinitionId String
+  currentValue         Decimal                @db.Decimal(5, 2)
+  baseValue            Decimal                @db.Decimal(5, 2)
+  potentialValue       Decimal                @db.Decimal(5, 2)
+  minValue             Decimal                @db.Decimal(5, 2)
+  maxValue             Decimal                @db.Decimal(5, 2)
+  status               AttributeStatus        @default(STABLE)
+  consistencyScore     Decimal                @db.Decimal(5, 2)
+  lastEventAt          DateTime?
+  lastDecayCheckAt     DateTime?
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+
+  user                User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attributeDefinition AttributeDefinition    @relation(fields: [attributeDefinitionId], references: [id], onDelete: Restrict)
+  historyLogs         AttributeHistoryLog[]
+  impacts             EvidenceEventImpact[]
+
+  @@unique([userId, attributeDefinitionId])
+  @@index([userId])
+}
+
+model EvidenceEvent {
+  id           String               @id @default(cuid())
+  userId       String
+  title        String
+  notes        String?
+  eventType    EvidenceEventType
+  intensity    EvidenceIntensity
+  occurredAt   DateTime
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+
+  user      User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  impacts   EvidenceEventImpact[]
+
+  @@index([userId, occurredAt])
+}
+
+model EvidenceEventImpact {
+  id                String          @id @default(cuid())
+  eventId           String
+  userAttributeId   String
+  deltaCurrent      Decimal         @db.Decimal(5, 2)
+  deltaBase         Decimal         @db.Decimal(5, 2)
+  deltaPotential    Decimal         @db.Decimal(5, 2)
+  explanation       String
+  createdAt         DateTime        @default(now())
+
+  event         EvidenceEvent   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userAttribute UserAttribute   @relation(fields: [userAttributeId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
+  @@index([userAttributeId])
+}
+
+model AttributeHistoryLog {
+  id                 String          @id @default(cuid())
+  userId             String
+  userAttributeId    String
+  causeType          HistoryCauseType
+  causeReferenceId   String?
+  explanation        String
+  previousCurrent    Decimal         @db.Decimal(5, 2)
+  nextCurrent        Decimal         @db.Decimal(5, 2)
+  previousBase       Decimal         @db.Decimal(5, 2)
+  nextBase           Decimal         @db.Decimal(5, 2)
+  previousPotential  Decimal         @db.Decimal(5, 2)
+  nextPotential      Decimal         @db.Decimal(5, 2)
+  changedAt          DateTime
+  createdAt          DateTime        @default(now())
+
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userAttribute UserAttribute @relation(fields: [userAttributeId], references: [id], onDelete: Cascade)
+
+  @@index([userId, changedAt])
+  @@index([userAttributeId, changedAt])
+}
+
+model DecayProfile {
+  id                        String    @id @default(cuid())
+  key                       String    @unique
+  attributeDefinitionId     String
+  graceDays                 Int
+  decayPerDay               Decimal   @db.Decimal(5, 3)
+  baseDecayPerDayAfterDays  Int
+  baseDecayPerDay           Decimal   @db.Decimal(5, 3)
+  floorRatio                Decimal   @db.Decimal(5, 3)
+  maintenanceBoostCurrent   Decimal   @db.Decimal(5, 3)
+  maintenanceBoostBase      Decimal   @db.Decimal(5, 3)
+  maintenanceBoostPotential Decimal   @db.Decimal(5, 3)
+  recoveryBoostCurrent      Decimal   @db.Decimal(5, 3)
+  recoveryBoostBase         Decimal   @db.Decimal(5, 3)
+  recoveryBoostPotential    Decimal   @db.Decimal(5, 3)
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
+
+  attributeDefinition AttributeDefinition @relation(fields: [attributeDefinitionId], references: [id], onDelete: Cascade)
+}
+
+model Recommendation {
+  id                     String                @id @default(cuid())
+  userId                 String
+  attributeDefinitionId  String
+  kind                   RecommendationKind
+  title                  String
+  rationale              String
+  expectedCurrentGain    Decimal               @db.Decimal(5, 2)
+  priorityScore          Decimal               @db.Decimal(6, 3)
+  status                 RecommendationStatus  @default(ACTIVE)
+  generatedAt            DateTime
+  expiresAt              DateTime
+  lastEvaluatedAt        DateTime
+  createdAt              DateTime              @default(now())
+  updatedAt              DateTime              @updatedAt
+
+  user                User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attributeDefinition AttributeDefinition @relation(fields: [attributeDefinitionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, attributeDefinitionId, kind])
+  @@index([userId, status])
+}
+
+model OnboardingTemplate {
+  id          String                        @id @default(cuid())
+  key         String                        @unique
+  label       String
+  description String
+  isDefault   Boolean                       @default(false)
+  createdAt   DateTime                      @default(now())
+  updatedAt   DateTime                      @updatedAt
+  attributes  OnboardingTemplateAttribute[]
+  answers     UserOnboarding[]
+}
+
+model OnboardingTemplateAttribute {
+  id                    String              @id @default(cuid())
+  templateId            String
+  attributeDefinitionId String
+  sortOrder             Int
+  emphasisWeight        Decimal             @db.Decimal(5, 2)
+
+  template            OnboardingTemplate   @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  attributeDefinition AttributeDefinition  @relation(fields: [attributeDefinitionId], references: [id], onDelete: Cascade)
+
+  @@unique([templateId, attributeDefinitionId])
+}
+
+model UserOnboarding {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  templateId  String
+  completedAt DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user     User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  template OnboardingTemplate @relation(fields: [templateId], references: [id], onDelete: Restrict)
+}
+
+model SystemJobRun {
+  id                  String       @id @default(cuid())
+  jobName             String
+  jobDay              DateTime
+  status              JobRunStatus
+  startedAt           DateTime
+  finishedAt          DateTime?
+  processedUsers      Int          @default(0)
+  impactedAttributes  Int          @default(0)
+  failureReason       String?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  @@unique([jobName, jobDay])
+  @@index([jobName, status])
+}
