@@ -11,6 +11,7 @@ export const vitestConfig = defineConfig({
     include: ["tests/**/*.test.ts"],
     environment: "node",
     globals: true,
+    fileParallelism: false,
   },
 });
 

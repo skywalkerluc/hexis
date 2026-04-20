@@ -4,6 +4,11 @@ import { prismaClient } from "@/shared/db/prisma-client";
 import { decimalToNumber, roundScore } from "@/shared/kernel/decimal";
 import { RECOMMENDATION_EXPIRY_DAYS } from "@/shared/kernel/scoring.constants";
 import { scoreRecommendationCandidate } from "@/modules/recommendations/domain/recommendation-scoring";
+import {
+  APPLIED_REACTIVATION_DAYS,
+  DISMISSED_REACTIVATION_DAYS,
+  REACTIVATION_PRIORITY_THRESHOLD,
+} from "@/modules/recommendations/domain/recommendation-lifecycle.constants";
 
 const MAX_RECOMMENDATIONS = 4;
 const RECOMMENDATION_THRESHOLD = 0.2;
@@ -21,6 +26,34 @@ type RecommendationCandidate = {
   deficit: number;
   daysSinceEvent: number;
 };
+
+function shouldReactivateDismissed(
+  dismissedAt: Date | null,
+  candidateScore: number,
+  now: Date,
+): boolean {
+  const reactivationAt = dismissedAt
+    ? addDays(dismissedAt, DISMISSED_REACTIVATION_DAYS)
+    : now;
+  return (
+    now.getTime() >= reactivationAt.getTime() &&
+    candidateScore >= REACTIVATION_PRIORITY_THRESHOLD
+  );
+}
+
+function shouldReactivateApplied(
+  appliedAt: Date | null,
+  candidateScore: number,
+  now: Date,
+): boolean {
+  const reactivationAt = appliedAt
+    ? addDays(appliedAt, APPLIED_REACTIVATION_DAYS)
+    : now;
+  return (
+    now.getTime() >= reactivationAt.getTime() &&
+    candidateScore >= REACTIVATION_PRIORITY_THRESHOLD
+  );
+}
 
 function buildCandidateList(
   input: GenerateRecommendationsInput,
@@ -131,7 +164,26 @@ export async function generateRecommendationsForUser(
       continue;
     }
 
-    if (existing.status === "DISMISSED" || existing.status === "APPLIED") {
+    if (
+      existing.status === "DISMISSED" &&
+      !shouldReactivateDismissed(existing.dismissedAt, candidate.score, input.now)
+    ) {
+      await prismaClient.recommendation.update({
+        where: { id: existing.id },
+        data: {
+          priorityScore: candidate.score,
+          lastEvaluatedAt: input.now,
+          rationale: `${candidate.daysSinceEvent} day(s) since last evidence. Current is below stable base trend.`,
+          expectedCurrentGain,
+        },
+      });
+      continue;
+    }
+
+    if (
+      existing.status === "APPLIED" &&
+      !shouldReactivateApplied(existing.appliedAt, candidate.score, input.now)
+    ) {
       await prismaClient.recommendation.update({
         where: { id: existing.id },
         data: {
@@ -155,6 +207,8 @@ export async function generateRecommendationsForUser(
         generatedAt: input.now,
         expiresAt: addDays(input.now, RECOMMENDATION_EXPIRY_DAYS),
         lastEvaluatedAt: input.now,
+        dismissedAt: null,
+        appliedAt: null,
       },
     });
   }

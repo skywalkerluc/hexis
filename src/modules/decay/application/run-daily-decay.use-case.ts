@@ -6,6 +6,10 @@ import { startOfUtcDay } from "@/modules/decay/domain/time";
 
 const DAILY_DECAY_JOB_NAME = "daily_decay";
 const USER_BATCH_SIZE = 50;
+const RUNNING_STALE_TIMEOUT_MINUTES = 30;
+const MILLISECONDS_PER_MINUTE = 60_000;
+const RUNNING_STALE_TIMEOUT_MS =
+  RUNNING_STALE_TIMEOUT_MINUTES * MILLISECONDS_PER_MINUTE;
 
 export type RunDailyDecayInput = {
   now: Date;
@@ -24,6 +28,13 @@ function isUniqueConstraintError(error: unknown): boolean {
   );
 }
 
+function isStaleRunningRun(
+  updatedAt: Date,
+  now: Date,
+): boolean {
+  return now.getTime() - updatedAt.getTime() > RUNNING_STALE_TIMEOUT_MS;
+}
+
 export async function runDailyDecayUseCase(input: RunDailyDecayInput): Promise<RunDailyDecayResult> {
   const jobDay = startOfUtcDay(input.now);
 
@@ -37,19 +48,58 @@ export async function runDailyDecayUseCase(input: RunDailyDecayInput): Promise<R
   });
 
   if (existingRun?.status === "SUCCEEDED" || existingRun?.status === "RUNNING") {
+    if (
+      existingRun.status === "RUNNING" &&
+      isStaleRunningRun(existingRun.updatedAt, input.now)
+    ) {
+      await prismaClient.systemJobRun.update({
+        where: { id: existingRun.id },
+        data: {
+          status: "FAILED",
+          finishedAt: input.now,
+          failureReason: `stale_running_timeout_${RUNNING_STALE_TIMEOUT_MINUTES}m`,
+        },
+      });
+
+      console.warn("[hexis.jobs.daily_decay] stale_run_recovered", {
+        jobRunId: existingRun.id,
+        updatedAt: existingRun.updatedAt.toISOString(),
+        now: input.now.toISOString(),
+        timeoutMinutes: RUNNING_STALE_TIMEOUT_MINUTES,
+      });
+    } else {
+      return {
+        processedUsers: existingRun.processedUsers,
+        impactedAttributes: existingRun.impactedAttributes,
+        skipped: true,
+        jobRunId: existingRun.id,
+      };
+    }
+  }
+
+  const runAfterStaleRecovery = await prismaClient.systemJobRun.findUnique({
+    where: {
+      jobName_jobDay: {
+        jobName: DAILY_DECAY_JOB_NAME,
+        jobDay,
+      },
+    },
+  });
+
+  if (runAfterStaleRecovery?.status === "SUCCEEDED" || runAfterStaleRecovery?.status === "RUNNING") {
     return {
-      processedUsers: existingRun.processedUsers,
-      impactedAttributes: existingRun.impactedAttributes,
+      processedUsers: runAfterStaleRecovery.processedUsers,
+      impactedAttributes: runAfterStaleRecovery.impactedAttributes,
       skipped: true,
-      jobRunId: existingRun.id,
+      jobRunId: runAfterStaleRecovery.id,
     };
   }
 
   let jobRunId: string;
 
-  if (existingRun?.status === "FAILED") {
+  if (runAfterStaleRecovery?.status === "FAILED") {
     const restarted = await prismaClient.systemJobRun.update({
-      where: { id: existingRun.id },
+      where: { id: runAfterStaleRecovery.id },
       data: {
         status: "RUNNING",
         startedAt: input.now,

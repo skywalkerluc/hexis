@@ -1,103 +1,139 @@
-import { beforeEach, describe, expect, test, vi } from "vitest";
+import { afterAll, beforeEach, describe, expect, test } from "vitest";
+import {
+  createTestPrismaClient,
+  prepareIntegrationDatabase,
+  setupIntegrationTestEnvironment,
+} from "./support/test-db";
 
-type RecommendationRecord = {
-  id: string;
-  userId: string;
-  attributeDefinitionId: string;
-  kind: "MAINTENANCE_BLOCK";
-  title: string;
-  rationale: string;
-  expectedCurrentGain: number;
-  priorityScore: number;
-  status: "ACTIVE" | "DISMISSED" | "APPLIED" | "EXPIRED";
-  generatedAt: Date;
-  expiresAt: Date;
-  lastEvaluatedAt: Date;
-};
+setupIntegrationTestEnvironment();
 
-const memory = vi.hoisted(() => ({
-  recommendations: [] as RecommendationRecord[],
-  attributes: [
-    {
-      userId: "user-1",
-      status: "AT_RISK",
-      currentValue: { toNumber: () => 8 },
-      baseValue: { toNumber: () => 10 },
-      potentialValue: { toNumber: () => 15 },
-      lastEventAt: new Date("2026-04-10T00:00:00.000Z"),
-      createdAt: new Date("2026-04-01T00:00:00.000Z"),
-      attributeDefinitionId: "focus-id",
-      attributeDefinition: { name: "Focus" },
-    },
-  ],
-}));
+const prisma = createTestPrismaClient();
 
-vi.mock("@/shared/db/prisma-client", () => {
-  return {
-    prismaClient: {
-      userAttribute: {
-        findMany: async () => memory.attributes,
-      },
-      recommendation: {
-        updateMany: async ({ where, data }: { where: { userId: string; status: string; expiresAt?: { lt: Date } }; data: Partial<RecommendationRecord> }) => {
-          let count = 0;
-          for (const recommendation of memory.recommendations) {
-            const expiredMatch = where.expiresAt ? recommendation.expiresAt < where.expiresAt.lt : true;
-            if (recommendation.userId === where.userId && recommendation.status === where.status && expiredMatch) {
-              Object.assign(recommendation, data);
-              count += 1;
-            }
-          }
-          return { count };
-        },
-        findMany: async ({ where }: { where: { userId: string; kind: "MAINTENANCE_BLOCK" } }) =>
-          memory.recommendations.filter(
-            (recommendation) =>
-              recommendation.userId === where.userId && recommendation.kind === where.kind,
-          ),
-        create: async ({ data }: { data: Omit<RecommendationRecord, "id"> }) => {
-          const created: RecommendationRecord = { ...data, id: `rec-${memory.recommendations.length + 1}` };
-          memory.recommendations.push(created);
-          return created;
-        },
-        update: async ({ where, data }: { where: { id: string }; data: Partial<RecommendationRecord> }) => {
-          const target = memory.recommendations.find((recommendation) => recommendation.id === where.id);
-          if (!target) {
-            throw new Error("recommendation not found");
-          }
-          Object.assign(target, data);
-          return target;
-        },
-      },
-    },
-  };
-});
+const GENERATION_DAY_ONE = new Date("2026-04-20T08:00:00.000Z");
+const GENERATION_DAY_TWO = new Date("2026-04-21T08:00:00.000Z");
+const GENERATION_DAY_FIVE = new Date("2026-04-24T08:00:00.000Z");
+const GENERATION_DAY_SIX = new Date("2026-04-25T08:00:00.000Z");
+const GENERATION_DAY_EIGHT = new Date("2026-04-27T08:00:00.000Z");
+const LAST_EVENT_STALE_DATE = new Date("2026-04-01T08:00:00.000Z");
 
-describe("integration: recommendation lifecycle", () => {
-  beforeEach(() => {
-    memory.recommendations.length = 0;
+async function createBootstrappedUser(email: string): Promise<string> {
+  const { signupUseCase } = await import("@/modules/auth/application/signup.use-case");
+
+  await signupUseCase({
+    email,
+    password: "very-strong-password",
+    displayName: "Recommendation Tester",
   });
 
-  test("keeps stable identity and does not destroy dismissed recommendations", async () => {
+  const user = await prisma.user.findUnique({ where: { email }, select: { id: true } });
+  if (!user) {
+    throw new Error("Expected user to exist after signup.");
+  }
+
+  return user.id;
+}
+
+async function makeFocusAtRisk(userId: string): Promise<void> {
+  const focus = await prisma.userAttribute.findFirst({
+    where: {
+      userId,
+      attributeDefinition: { slug: "focus" },
+    },
+    select: { id: true },
+  });
+
+  if (!focus) {
+    throw new Error("Expected focus attribute.");
+  }
+
+  await prisma.userAttribute.update({
+    where: { id: focus.id },
+    data: {
+      status: "AT_RISK",
+      currentValue: 7,
+      baseValue: 10,
+      potentialValue: 15,
+      lastEventAt: LAST_EVENT_STALE_DATE,
+    },
+  });
+}
+
+describe.sequential("integration: recommendation lifecycle", () => {
+  beforeEach(async () => {
+    await prepareIntegrationDatabase(prisma);
+  });
+
+  afterAll(async () => {
+    await prisma.$disconnect();
+  });
+
+  test("keeps stable identity and respects dismissed/applied reactivation windows", async () => {
+    const userId = await createBootstrappedUser("recommendation@hexis.app");
+    await makeFocusAtRisk(userId);
+
     const { generateRecommendationsForUser } = await import(
       "@/modules/recommendations/application/generate-recommendations.use-case"
     );
+    const {
+      dismissRecommendationUseCase,
+      applyRecommendationUseCase,
+    } = await import("@/modules/recommendations/application/update-recommendation-status.use-case");
 
-    const now = new Date("2026-04-20T00:00:00.000Z");
-    await generateRecommendationsForUser({ userId: "user-1", now });
+    await generateRecommendationsForUser({ userId, now: GENERATION_DAY_ONE });
 
-    expect(memory.recommendations).toHaveLength(1);
-    expect(memory.recommendations[0]?.status).toBe("ACTIVE");
+    const first = await prisma.recommendation.findFirst({
+      where: { userId },
+      orderBy: { createdAt: "asc" },
+    });
 
-    if (memory.recommendations[0]) {
-      memory.recommendations[0].status = "DISMISSED";
+    expect(first).not.toBeNull();
+    expect(first?.status).toBe("ACTIVE");
+
+    if (!first) {
+      throw new Error("Recommendation must exist.");
     }
 
-    await generateRecommendationsForUser({ userId: "user-1", now: new Date("2026-04-21T00:00:00.000Z") });
+    await dismissRecommendationUseCase({
+      userId,
+      recommendationId: first.id,
+      now: GENERATION_DAY_ONE,
+    });
 
-    expect(memory.recommendations).toHaveLength(1);
-    expect(memory.recommendations[0]?.status).toBe("DISMISSED");
-    expect(memory.recommendations[0]?.kind).toBe("MAINTENANCE_BLOCK");
-    expect(memory.recommendations[0]?.lastEvaluatedAt.toISOString()).toBe("2026-04-21T00:00:00.000Z");
+    await generateRecommendationsForUser({ userId, now: GENERATION_DAY_TWO });
+
+    const afterDismissCooldown = await prisma.recommendation.findUnique({ where: { id: first.id } });
+    expect(afterDismissCooldown?.status).toBe("DISMISSED");
+
+    await generateRecommendationsForUser({ userId, now: GENERATION_DAY_FIVE });
+
+    const reactivatedFromDismiss = await prisma.recommendation.findUnique({ where: { id: first.id } });
+    expect(reactivatedFromDismiss?.status).toBe("ACTIVE");
+    expect(reactivatedFromDismiss?.dismissedAt).toBeNull();
+
+    await applyRecommendationUseCase({
+      userId,
+      recommendationId: first.id,
+      now: GENERATION_DAY_FIVE,
+    });
+
+    await generateRecommendationsForUser({ userId, now: GENERATION_DAY_SIX });
+
+    const afterAppliedCooldown = await prisma.recommendation.findUnique({ where: { id: first.id } });
+    expect(afterAppliedCooldown?.status).toBe("APPLIED");
+
+    await generateRecommendationsForUser({ userId, now: GENERATION_DAY_EIGHT });
+
+    const reactivatedFromApplied = await prisma.recommendation.findUnique({ where: { id: first.id } });
+    expect(reactivatedFromApplied?.status).toBe("ACTIVE");
+    expect(reactivatedFromApplied?.appliedAt).toBeNull();
+
+    const recommendationCountForFocus = await prisma.recommendation.count({
+      where: {
+        userId,
+        attributeDefinitionId: first.attributeDefinitionId,
+        kind: first.kind,
+      },
+    });
+    expect(recommendationCountForFocus).toBe(1);
   });
 });

@@ -1,113 +1,129 @@
-import { beforeEach, describe, expect, test, vi } from "vitest";
+import { afterAll, beforeEach, describe, expect, test } from "vitest";
+import {
+  createTestPrismaClient,
+  prepareIntegrationDatabase,
+  setupIntegrationTestEnvironment,
+} from "./support/test-db";
 
-type JobRunRecord = {
-  id: string;
-  jobName: string;
-  jobDay: Date;
-  status: "RUNNING" | "SUCCEEDED" | "FAILED";
-  startedAt: Date;
-  finishedAt: Date | null;
-  processedUsers: number;
-  impactedAttributes: number;
-  failureReason: string | null;
-};
+setupIntegrationTestEnvironment();
 
-const memory = vi.hoisted(() => ({
-  users: [{ id: "u1" }, { id: "u2" }, { id: "u3" }],
-  jobRuns: [] as JobRunRecord[],
-  recalculateCalls: 0,
-  recommendationCalls: 0,
-}));
+const prisma = createTestPrismaClient();
 
-vi.mock("@/modules/decay/application/decay-recalculation.service", () => {
-  return {
-    recalculateDecayForUser: async () => {
-      memory.recalculateCalls += 1;
-      return { affectedAttributes: 2, totalCurrentDecay: 0.4 };
-    },
-  };
-});
+const FIRST_RUN_TIME = new Date("2026-04-20T08:00:00.000Z");
+const SECOND_RUN_TIME = new Date("2026-04-20T18:00:00.000Z");
+const OLD_EVENT_TIME = new Date("2026-03-25T08:00:00.000Z");
+const OLD_DECAY_CHECK_TIME = new Date("2026-04-01T08:00:00.000Z");
 
-vi.mock("@/modules/recommendations/application/generate-recommendations.use-case", () => {
-  return {
-    generateRecommendationsForUser: async () => {
-      memory.recommendationCalls += 1;
-      return 1;
-    },
-  };
-});
-
-vi.mock("@/shared/db/prisma-client", () => {
-  return {
-    prismaClient: {
-      systemJobRun: {
-        findUnique: async ({ where }: { where: { jobName_jobDay: { jobName: string; jobDay: Date } } }) =>
-          memory.jobRuns.find(
-            (job) =>
-              job.jobName === where.jobName_jobDay.jobName &&
-              job.jobDay.getTime() === where.jobName_jobDay.jobDay.getTime(),
-          ) ?? null,
-        create: async ({ data }: { data: { jobName: string; jobDay: Date; status: JobRunRecord["status"]; startedAt: Date } }) => {
-          const created: JobRunRecord = {
-            id: `job-${memory.jobRuns.length + 1}`,
-            jobName: data.jobName,
-            jobDay: data.jobDay,
-            status: data.status,
-            startedAt: data.startedAt,
-            finishedAt: null,
-            processedUsers: 0,
-            impactedAttributes: 0,
-            failureReason: null,
-          };
-          memory.jobRuns.push(created);
-          return created;
-        },
-        update: async ({ where, data }: { where: { id: string }; data: Partial<JobRunRecord> }) => {
-          const target = memory.jobRuns.find((job) => job.id === where.id);
-          if (!target) {
-            throw new Error("job not found");
-          }
-          Object.assign(target, data);
-          return target;
-        },
-      },
-      user: {
-        findMany: async ({ take, cursor, skip }: { take: number; cursor?: { id: string }; skip?: number }) => {
-          const ordered = [...memory.users].sort((left, right) => left.id.localeCompare(right.id));
-          if (!cursor) {
-            return ordered.slice(0, take);
-          }
-          const index = ordered.findIndex((user) => user.id === cursor.id);
-          const start = index + (skip ?? 0);
-          return ordered.slice(start, start + take);
-        },
-      },
-    },
-  };
-});
-
-describe("integration: daily decay job", () => {
-  beforeEach(() => {
-    memory.jobRuns.length = 0;
-    memory.recalculateCalls = 0;
-    memory.recommendationCalls = 0;
+async function createBootstrappedUser(email: string): Promise<string> {
+  const { signupUseCase } = await import("@/modules/auth/application/signup.use-case");
+  await signupUseCase({
+    email,
+    password: "very-strong-password",
+    displayName: "Decay Tester",
   });
 
-  test("is idempotent per day and processes users in batches", async () => {
+  const user = await prisma.user.findUnique({ where: { email }, select: { id: true } });
+  if (!user) {
+    throw new Error("Expected user to exist after signup.");
+  }
+
+  return user.id;
+}
+
+async function prepareDecayingState(userId: string): Promise<void> {
+  const focus = await prisma.userAttribute.findFirst({
+    where: {
+      userId,
+      attributeDefinition: { slug: "focus" },
+    },
+    select: { id: true },
+  });
+
+  if (!focus) {
+    throw new Error("Expected focus attribute.");
+  }
+
+  await prisma.userAttribute.update({
+    where: { id: focus.id },
+    data: {
+      lastEventAt: OLD_EVENT_TIME,
+      lastDecayCheckAt: OLD_DECAY_CHECK_TIME,
+    },
+  });
+}
+
+describe.sequential("integration: daily decay job idempotency", () => {
+  beforeEach(async () => {
+    await prepareIntegrationDatabase(prisma);
+  });
+
+  afterAll(async () => {
+    await prisma.$disconnect();
+  });
+
+  test("applies once per day and re-run skips using persisted run state", async () => {
+    const userA = await createBootstrappedUser("decay-a@hexis.app");
+    const userB = await createBootstrappedUser("decay-b@hexis.app");
+
+    await prepareDecayingState(userA);
+    await prepareDecayingState(userB);
+
     const { runDailyDecayUseCase } = await import("@/modules/decay/application/run-daily-decay.use-case");
 
-    const now = new Date("2026-04-20T10:00:00.000Z");
-    const first = await runDailyDecayUseCase({ now });
-    const second = await runDailyDecayUseCase({ now: new Date("2026-04-20T16:00:00.000Z") });
+    const firstRun = await runDailyDecayUseCase({ now: FIRST_RUN_TIME });
+    expect(firstRun.skipped).toBe(false);
+    expect(firstRun.processedUsers).toBe(2);
 
-    expect(first.skipped).toBe(false);
-    expect(first.processedUsers).toBe(3);
-    expect(first.impactedAttributes).toBe(6);
-    expect(memory.recalculateCalls).toBe(3);
-    expect(memory.recommendationCalls).toBe(3);
+    const firstDecayLogs = await prisma.attributeHistoryLog.count({ where: { causeType: "DECAY" } });
+    expect(firstDecayLogs).toBeGreaterThanOrEqual(2);
 
-    expect(second.skipped).toBe(true);
-    expect(memory.jobRuns).toHaveLength(1);
-    expect(memory.jobRuns[0]?.status).toBe("SUCCEEDED");
+    const secondRun = await runDailyDecayUseCase({ now: SECOND_RUN_TIME });
+    expect(secondRun.skipped).toBe(true);
+
+    const secondDecayLogs = await prisma.attributeHistoryLog.count({ where: { causeType: "DECAY" } });
+    expect(secondDecayLogs).toBe(firstDecayLogs);
+
+    const jobRuns = await prisma.systemJobRun.findMany({
+      where: { jobName: "daily_decay" },
+      orderBy: { createdAt: "asc" },
+    });
+
+    expect(jobRuns).toHaveLength(1);
+    expect(jobRuns[0]?.status).toBe("SUCCEEDED");
+    expect(jobRuns[0]?.processedUsers).toBe(2);
+  });
+
+  test("recovers stale RUNNING runs instead of skipping forever", async () => {
+    const userId = await createBootstrappedUser("decay-stale@hexis.app");
+    await prepareDecayingState(userId);
+
+    const staleDay = new Date("2026-04-21T00:00:00.000Z");
+    const staleStartedAt = new Date("2026-04-21T00:10:00.000Z");
+    const staleUpdatedAt = new Date("2026-04-21T00:15:00.000Z");
+    const recoveryNow = new Date("2026-04-21T02:00:00.000Z");
+
+    const staleRun = await prisma.systemJobRun.create({
+      data: {
+        jobName: "daily_decay",
+        jobDay: staleDay,
+        status: "RUNNING",
+        startedAt: staleStartedAt,
+      },
+    });
+
+    await prisma.$executeRawUnsafe(
+      `UPDATE "SystemJobRun" SET "updatedAt" = $1 WHERE "id" = $2`,
+      staleUpdatedAt,
+      staleRun.id,
+    );
+
+    const { runDailyDecayUseCase } = await import("@/modules/decay/application/run-daily-decay.use-case");
+    const recovery = await runDailyDecayUseCase({ now: recoveryNow });
+
+    expect(recovery.skipped).toBe(false);
+
+    const persistedRun = await prisma.systemJobRun.findUnique({ where: { id: staleRun.id } });
+    expect(persistedRun?.status).toBe("SUCCEEDED");
+    expect(persistedRun?.processedUsers).toBe(1);
   });
 });

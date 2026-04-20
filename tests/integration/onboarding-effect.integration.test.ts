@@ -1,147 +1,92 @@
-import { beforeEach, describe, expect, test, vi } from "vitest";
+import { afterAll, beforeEach, describe, expect, test } from "vitest";
+import {
+  createTestPrismaClient,
+  prepareIntegrationDatabase,
+  setupIntegrationTestEnvironment,
+} from "./support/test-db";
 
-type UserAttributeRecord = {
-  id: string;
-  userId: string;
-  attributeDefinitionId: string;
-  currentValue: { toNumber(): number };
-  baseValue: { toNumber(): number };
-  potentialValue: { toNumber(): number };
-  minValue: { toNumber(): number };
-  maxValue: { toNumber(): number };
-  consistencyScore: number;
-  status: string;
-  attributeDefinition: {
-    defaultCurrentValue: { toNumber(): number };
-    defaultBaseValue: { toNumber(): number };
-    defaultPotentialValue: { toNumber(): number };
-  };
-};
+setupIntegrationTestEnvironment();
 
-const memory = vi.hoisted(() => ({
-  userOnboarding: [] as { userId: string; templateId: string }[],
-  profile: { userId: "user-1", onboardingDone: false },
-  logs: [] as { userAttributeId: string; explanation: string }[],
-  attributes: [] as UserAttributeRecord[],
-  template: {
-    id: "template-deep-work",
-    key: "deep-work",
-    label: "Deep Work",
-    attributes: [{ attributeDefinitionId: "focus-id", emphasisWeight: { toNumber: () => 1.4 } }],
-  },
-}));
+const prisma = createTestPrismaClient();
 
-function decimal(value: number): { toNumber(): number } {
-  return {
-    toNumber: () => value,
-  };
-}
+async function createBootstrappedUser(email: string): Promise<string> {
+  const { signupUseCase } = await import("@/modules/auth/application/signup.use-case");
 
-vi.mock("@/shared/db/prisma-client", () => {
-  return {
-    prismaClient: {
-      onboardingTemplate: {
-        findUnique: async () => memory.template,
-      },
-      $transaction: async <T>(callback: (tx: unknown) => Promise<T>) => {
-        const tx = {
-          userOnboarding: {
-            upsert: async ({ create }: { create: { userId: string; templateId: string } }) => {
-              memory.userOnboarding = [{ userId: create.userId, templateId: create.templateId }];
-              return create;
-            },
-          },
-          profile: {
-            update: async ({ data }: { data: { onboardingDone: boolean } }) => {
-              memory.profile.onboardingDone = data.onboardingDone;
-              return memory.profile;
-            },
-          },
-          userAttribute: {
-            findMany: async () => memory.attributes,
-            update: async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
-              const target = memory.attributes.find((attribute) => attribute.id === where.id);
-              if (!target) {
-                throw new Error("attribute not found");
-              }
-              target.currentValue = decimal(Number(data.currentValue));
-              target.baseValue = decimal(Number(data.baseValue));
-              target.potentialValue = decimal(Number(data.potentialValue));
-              target.status = String(data.status);
-              target.consistencyScore = Number(data.consistencyScore);
-              return target;
-            },
-          },
-          attributeHistoryLog: {
-            create: async ({ data }: { data: { userAttributeId: string; explanation: string } }) => {
-              memory.logs.push(data);
-              return data;
-            },
-          },
-        };
-
-        return callback(tx);
-      },
-    },
-  };
-});
-
-describe("integration: onboarding template effect", () => {
-  beforeEach(() => {
-    memory.userOnboarding.length = 0;
-    memory.profile.onboardingDone = false;
-    memory.logs.length = 0;
-    memory.attributes = [
-      {
-        id: "ua-focus",
-        userId: "user-1",
-        attributeDefinitionId: "focus-id",
-        currentValue: decimal(10),
-        baseValue: decimal(10),
-        potentialValue: decimal(15),
-        minValue: decimal(0),
-        maxValue: decimal(20),
-        consistencyScore: 0,
-        status: "STABLE",
-        attributeDefinition: {
-            defaultCurrentValue: decimal(10),
-            defaultBaseValue: decimal(10),
-            defaultPotentialValue: decimal(15),
-        },
-      },
-      {
-        id: "ua-energy",
-        userId: "user-1",
-        attributeDefinitionId: "energy-id",
-        currentValue: decimal(10),
-        baseValue: decimal(10),
-        potentialValue: decimal(15),
-        minValue: decimal(0),
-        maxValue: decimal(20),
-        consistencyScore: 0,
-        status: "STABLE",
-        attributeDefinition: {
-            defaultCurrentValue: decimal(10),
-            defaultBaseValue: decimal(10),
-            defaultPotentialValue: decimal(15),
-        },
-      },
-    ];
+  await signupUseCase({
+    email,
+    password: "very-strong-password",
+    displayName: "Onboarding Tester",
   });
 
-  test("changes starting state based on selected template", async () => {
+  const user = await prisma.user.findUnique({ where: { email }, select: { id: true } });
+  if (!user) {
+    throw new Error("Expected user to exist after signup.");
+  }
+
+  return user.id;
+}
+
+describe.sequential("integration: onboarding effect", () => {
+  beforeEach(async () => {
+    await prepareIntegrationDatabase(prisma);
+  });
+
+  afterAll(async () => {
+    await prisma.$disconnect();
+  });
+
+  test("applies selected template once and persists emphasis weights", async () => {
+    const userId = await createBootstrappedUser("onboarding-once@hexis.app");
+
     const { completeOnboardingUseCase } = await import(
       "@/modules/onboarding/application/complete-onboarding.use-case"
     );
 
-    await completeOnboardingUseCase({ userId: "user-1", templateKey: "deep-work" });
+    await completeOnboardingUseCase({
+      userId,
+      templateKey: "deep-work",
+    });
 
-    const focus = memory.attributes.find((attribute) => attribute.id === "ua-focus");
-    const energy = memory.attributes.find((attribute) => attribute.id === "ua-energy");
+    const profile = await prisma.profile.findUnique({ where: { userId } });
+    const onboarding = await prisma.userOnboarding.findUnique({ where: { userId } });
+    const focus = await prisma.userAttribute.findFirst({
+      where: {
+        userId,
+        attributeDefinition: { slug: "focus" },
+      },
+    });
 
-    expect(memory.profile.onboardingDone).toBe(true);
-    expect(focus?.currentValue.toNumber()).toBeGreaterThan(10);
-    expect(energy?.currentValue.toNumber()).toBeLessThan(10);
-    expect(memory.logs).toHaveLength(2);
+    expect(profile?.onboardingDone).toBe(true);
+    expect(onboarding).not.toBeNull();
+    expect(onboarding?.templateId).toBeDefined();
+    expect(focus?.onboardingEmphasisWeight?.toNumber()).toBe(1.45);
+
+    const systemLogs = await prisma.attributeHistoryLog.count({
+      where: {
+        userId,
+        causeType: "SYSTEM",
+        causeReferenceId: "onboarding:deep-work",
+      },
+    });
+
+    expect(systemLogs).toBe(10);
+
+    await expect(
+      completeOnboardingUseCase({
+        userId,
+        templateKey: "embodied-practice",
+      }),
+    ).rejects.toThrow("Onboarding already completed.");
+
+    const onboardingCount = await prisma.userOnboarding.count({ where: { userId } });
+    const systemLogCountAfterReplay = await prisma.attributeHistoryLog.count({
+      where: {
+        userId,
+        causeType: "SYSTEM",
+      },
+    });
+
+    expect(onboardingCount).toBe(1);
+    expect(systemLogCountAfterReplay).toBe(10);
   });
 });

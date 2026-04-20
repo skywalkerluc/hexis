@@ -138,6 +138,7 @@ model UserAttribute {
   maxValue             Decimal                @db.Decimal(5, 2)
   status               AttributeStatus        @default(STABLE)
   consistencyScore     Decimal                @db.Decimal(5, 2)
+  onboardingEmphasisWeight Decimal?           @db.Decimal(5, 2)
   lastEventAt          DateTime?
   lastDecayCheckAt     DateTime?
   createdAt            DateTime               @default(now())
@@ -240,6 +241,8 @@ model Recommendation {
   expectedCurrentGain    Decimal               @db.Decimal(5, 2)
   priorityScore          Decimal               @db.Decimal(6, 3)
   status                 RecommendationStatus  @default(ACTIVE)
+  dismissedAt            DateTime?
+  appliedAt              DateTime?
   generatedAt            DateTime
   expiresAt              DateTime
   lastEvaluatedAt        DateTime
