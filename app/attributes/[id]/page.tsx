@@ -4,7 +4,9 @@ import { AppShell } from "@/modules/shared/presentation/components/app-shell";
 import { AttributeScale } from "@/modules/shared/presentation/components/attribute-scale";
 import { StatusBadge } from "@/modules/shared/presentation/components/status-badge";
 import { readUserAttributeDetail } from "@/modules/attributes/application/read-attributes.query";
-import { readAttributeHistory } from "@/modules/evidence/application/read-history.query";
+import { readAttributeHistory, readEvidenceHistory } from "@/modules/evidence/application/read-history.query";
+import { readRecommendationsForAttribute } from "@/modules/recommendations/application/read-recommendations.query";
+import { RecommendationItem } from "@/modules/recommendations/presentation/components/recommendation-item";
 import { requireOnboardedUser } from "@/shared/auth/route-guards";
 
 async function AttributeDetailPage({
@@ -20,7 +22,20 @@ async function AttributeDetailPage({
     notFound();
   }
 
-  const history = await readAttributeHistory(user.id, attribute.userAttributeId);
+  const [history, events, recommendations] = await Promise.all([
+    readAttributeHistory(user.id, attribute.userAttributeId),
+    readEvidenceHistory(user.id),
+    readRecommendationsForAttribute(user.id, attribute.definitionId),
+  ]);
+  const recentEvents = events
+    .filter((event) =>
+      event.impacts.some((impact) => impact.userAttributeId === attribute.userAttributeId),
+    )
+    .slice(0, 6);
+  const latestHistory = history[0];
+  const currentDelta = latestHistory
+    ? latestHistory.nextCurrent - latestHistory.previousCurrent
+    : 0;
 
   return (
     <AppShell
@@ -58,27 +73,81 @@ async function AttributeDetailPage({
             potentialValue={attribute.potentialValue}
           />
         </div>
+
+        <div className="mt-5 grid gap-3 sm:grid-cols-3">
+          <InfoPill
+            label="Last event"
+            value={attribute.lastEventAt ? attribute.lastEventAt.toLocaleString() : "No evidence yet"}
+          />
+          <InfoPill
+            label="Last decay check"
+            value={attribute.lastDecayCheckAt ? attribute.lastDecayCheckAt.toLocaleString() : "Not checked yet"}
+          />
+          <InfoPill
+            label="Latest current delta"
+            value={`${currentDelta >= 0 ? "+" : ""}${currentDelta.toFixed(2)}`}
+          />
+        </div>
       </section>
 
-      <section className="hexis-card mt-6 p-6">
-        <p className="hexis-eyebrow">History log</p>
-        <p className="mt-1 text-xs text-[var(--color-muted)]">Every change includes a cause and explicit deltas.</p>
+      <div className="mt-6 grid gap-6 xl:grid-cols-12">
+        <section className="hexis-card p-6 xl:col-span-8">
+          <p className="hexis-eyebrow">History log</p>
+          <p className="mt-1 text-xs text-[var(--color-muted)]">Every change includes a cause and explicit deltas.</p>
 
-        <ul className="mt-4 space-y-3">
-          {history.map((entry) => (
-            <li key={entry.id} className="rounded-md border bg-[var(--color-background)] p-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <p className="text-xs uppercase tracking-wider text-[var(--color-muted)]">{entry.causeType}</p>
-                <p className="text-xs text-[var(--color-muted)]">{entry.changedAt.toLocaleString()}</p>
-              </div>
-              <p className="mt-2 text-sm">{entry.explanation}</p>
-              <p className="mt-2 text-xs text-[var(--color-muted)]">
-                Current {entry.previousCurrent.toFixed(2)} → {entry.nextCurrent.toFixed(2)} · Base {entry.previousBase.toFixed(2)} → {entry.nextBase.toFixed(2)} · Potential {entry.previousPotential.toFixed(2)} → {entry.nextPotential.toFixed(2)}
-              </p>
-            </li>
-          ))}
-        </ul>
-      </section>
+          <ul className="mt-4 space-y-3">
+            {history.map((entry) => (
+              <li key={entry.id} className="rounded-md border bg-[var(--color-background)] p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <p className="text-xs uppercase tracking-wider text-[var(--color-muted)]">{entry.causeType}</p>
+                  <p className="text-xs text-[var(--color-muted)]">{entry.changedAt.toLocaleString()}</p>
+                </div>
+                <p className="mt-2 text-sm">{entry.explanation}</p>
+                <p className="mt-2 text-xs text-[var(--color-muted)]">
+                  Current {entry.previousCurrent.toFixed(2)} → {entry.nextCurrent.toFixed(2)} · Base {entry.previousBase.toFixed(2)} → {entry.nextBase.toFixed(2)} · Potential {entry.previousPotential.toFixed(2)} → {entry.nextPotential.toFixed(2)}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <aside className="space-y-6 xl:col-span-4">
+          <div className="hexis-card p-5">
+            <p className="hexis-eyebrow">Recommendation state</p>
+            <ul className="mt-3 space-y-3">
+              {recommendations.length === 0 ? (
+                <li className="text-sm text-[var(--color-muted)]">No recommendation history for this attribute.</li>
+              ) : (
+                recommendations.map((recommendation) => (
+                  <RecommendationItem
+                    key={recommendation.id}
+                    recommendation={recommendation}
+                    allowActions={recommendation.status === "ACTIVE"}
+                  />
+                ))
+              )}
+            </ul>
+          </div>
+
+          <div className="hexis-card p-5">
+            <p className="hexis-eyebrow">Recent evidence</p>
+            <ul className="mt-3 space-y-2">
+              {recentEvents.length === 0 ? (
+                <li className="text-sm text-[var(--color-muted)]">No direct evidence linked yet.</li>
+              ) : (
+                recentEvents.map((event) => (
+                  <li key={event.id} className="rounded-md border bg-[var(--color-background)] p-3">
+                    <p className="text-sm font-medium">{event.title}</p>
+                    <p className="mt-1 text-xs text-[var(--color-muted)]">
+                      {event.eventType} · {event.intensity} · {event.occurredAt.toLocaleString()}
+                    </p>
+                  </li>
+                ))
+              )}
+            </ul>
+          </div>
+        </aside>
+      </div>
     </AppShell>
   );
 }
@@ -88,6 +157,15 @@ function Metric({ label, value }: { label: string; value: string }) {
     <div className="rounded-md border bg-[var(--color-background)] p-4">
       <p className="hexis-eyebrow">{label}</p>
       <p className="mt-1 text-2xl font-semibold">{value}</p>
+    </div>
+  );
+}
+
+function InfoPill({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border bg-[var(--color-background)] p-3">
+      <p className="hexis-eyebrow">{label}</p>
+      <p className="mt-1 text-xs text-[var(--color-muted)]">{value}</p>
     </div>
   );
 }

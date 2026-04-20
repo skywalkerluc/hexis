@@ -44,5 +44,5 @@ export async function createEvidenceEventAction(formData: FormData): Promise<voi
 
   await generateRecommendationsForUser({ userId: user.id, now: new Date() });
 
-  redirect("/history");
+  redirect("/history?logged=1");
 }

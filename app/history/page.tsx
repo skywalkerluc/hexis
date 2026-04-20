@@ -1,10 +1,23 @@
 import { AppShell } from "@/modules/shared/presentation/components/app-shell";
 import { readEvidenceHistory } from "@/modules/evidence/application/read-history.query";
+import { readRecommendationTimeline } from "@/modules/recommendations/application/read-recommendations.query";
+import { RecommendationItem } from "@/modules/recommendations/presentation/components/recommendation-item";
 import { requireOnboardedUser } from "@/shared/auth/route-guards";
 
-async function HistoryPage() {
+async function HistoryPage({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const user = await requireOnboardedUser();
-  const events = await readEvidenceHistory(user.id);
+  const emptySearchParams: Record<string, string | string[] | undefined> = {};
+  const [events, recommendationTimeline, resolvedSearchParams] = await Promise.all([
+    readEvidenceHistory(user.id),
+    readRecommendationTimeline(user.id),
+    searchParams ?? Promise.resolve(emptySearchParams),
+  ]);
+  const loggedParam = resolvedSearchParams.logged;
+  const showLoggedFeedback = loggedParam === "1";
 
   return (
     <AppShell
@@ -13,6 +26,11 @@ async function HistoryPage() {
       currentPath="/history"
       displayName={user.profile?.displayName ?? user.email}
     >
+      {showLoggedFeedback ? (
+        <div className="rounded-md border border-[var(--color-teal)] bg-[var(--color-surface-raised)] px-4 py-3 text-sm text-[var(--color-foreground)]">
+          Evidence logged and applied to your attribute state.
+        </div>
+      ) : null}
       <p className="text-sm text-[var(--color-muted)]">Chronological evidence with per-attribute explanations.</p>
       <div className="mt-6 space-y-4">
         {events.map((event) => (
@@ -40,6 +58,26 @@ async function HistoryPage() {
           </article>
         ))}
       </div>
+
+      <section className="hexis-card mt-8 p-5">
+        <p className="hexis-eyebrow">Recommendation lifecycle</p>
+        <p className="mt-1 text-sm text-[var(--color-muted)]">
+          Active, dismissed, applied and expired guidance with persisted state.
+        </p>
+        <ul className="mt-4 space-y-3">
+          {recommendationTimeline.length === 0 ? (
+            <li className="text-sm text-[var(--color-muted)]">No recommendations yet.</li>
+          ) : (
+            recommendationTimeline.map((recommendation) => (
+              <RecommendationItem
+                key={recommendation.id}
+                recommendation={recommendation}
+                allowActions={recommendation.status === "ACTIVE"}
+              />
+            ))
+          )}
+        </ul>
+      </section>
     </AppShell>
   );
 }

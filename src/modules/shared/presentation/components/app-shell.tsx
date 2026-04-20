@@ -10,6 +10,14 @@ const NAV_ITEMS: readonly { href: string; label: string }[] = [
   { href: "/settings", label: "Settings" },
 ] as const;
 
+const MOBILE_NAV_ITEMS: readonly { href: string; label: string }[] = [
+  { href: "/dashboard", label: "Home" },
+  { href: "/attributes", label: "Attributes" },
+  { href: "/log", label: "Log" },
+  { href: "/history", label: "History" },
+  { href: "/profile", label: "Profile" },
+] as const;
+
 export type AppShellProps = {
   title: string;
   eyebrow?: string;
@@ -88,16 +96,48 @@ export function AppShell({
           className="sticky top-0 z-10 border-b px-5 py-4 backdrop-blur lg:px-10"
           style={{ background: "color-mix(in oklab, var(--color-background) 88%, transparent)" }}
         >
-          <div className="flex items-center justify-between gap-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               {eyebrow ? <p className="hexis-eyebrow">{eyebrow}</p> : null}
               <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
             </div>
-            {actions}
+            <div className="flex items-center gap-2">
+              {actions}
+              <form action={logoutAction} className="lg:hidden">
+                <button className="rounded-md border px-2.5 py-1.5 text-xs text-[var(--color-muted)]">
+                  Sign out
+                </button>
+              </form>
+            </div>
           </div>
         </header>
-        <main className="px-5 py-8 lg:px-10">{children}</main>
+        <main className="px-4 py-6 pb-24 sm:px-5 lg:px-10 lg:py-8 lg:pb-8">{children}</main>
       </div>
+
+      <nav
+        className="fixed inset-x-0 bottom-0 z-20 border-t px-2 py-2 backdrop-blur lg:hidden"
+        style={{ background: "color-mix(in oklab, var(--color-surface) 92%, transparent)" }}
+      >
+        <ul className="grid grid-cols-5 gap-1">
+          {MOBILE_NAV_ITEMS.map((item) => {
+            const active = isActivePath(currentPath, item.href);
+            return (
+              <li key={item.href}>
+                <Link
+                  href={item.href}
+                  className="block rounded-md px-2 py-2 text-center text-[11px]"
+                  style={{
+                    color: active ? "var(--color-foreground)" : "var(--color-muted)",
+                    background: active ? "var(--color-surface-raised)" : "transparent",
+                  }}
+                >
+                  {item.label}
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      </nav>
     </div>
   );
 }
