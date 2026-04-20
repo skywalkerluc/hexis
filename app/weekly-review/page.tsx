@@ -1,6 +1,8 @@
 import { AppShell } from "@/modules/shared/presentation/components/app-shell";
 import { readRetentionView } from "@/modules/retention/application/read-retention.query";
 import { runRetentionAction } from "@/modules/retention/presentation/retention.actions";
+import { readUserLoopView } from "@/modules/loops/application/read-user-loop.query";
+import { updateLoopSettingsAction } from "@/modules/loops/presentation/loop.actions";
 import { RecommendationItem } from "@/modules/recommendations/presentation/components/recommendation-item";
 import { readActiveRecommendations } from "@/modules/recommendations/application/read-recommendations.query";
 import { trackProductEventSafely } from "@/modules/analytics/application/track-product-event-safe";
@@ -9,9 +11,10 @@ import { requireOnboardedUser } from "@/shared/auth/route-guards";
 
 async function WeeklyReviewPage() {
   const user = await requireOnboardedUser();
-  const [retentionView, recommendations] = await Promise.all([
+  const [retentionView, recommendations, userLoop] = await Promise.all([
     readRetentionView(user.id, new Date()),
     readActiveRecommendations(user.id),
+    readUserLoopView(user.id),
   ]);
 
   await trackProductEventSafely({
@@ -48,6 +51,53 @@ async function WeeklyReviewPage() {
       currentPath="/dashboard"
       displayName={user.profile?.displayName ?? user.email}
     >
+      <section className="hexis-card mb-6 p-5 sm:p-6">
+        <p className="hexis-eyebrow">Weekly focus loop</p>
+        <p className="mt-1 text-sm text-[var(--color-muted)]">
+          Choose one template and one focus for this week. Keep it narrow and repeatable.
+        </p>
+        <form action={updateLoopSettingsAction} className="mt-4 grid gap-4 lg:grid-cols-2">
+          <label>
+            <span className="text-xs uppercase tracking-wide text-[var(--color-muted)]">Template</span>
+            <select
+              name="templateKey"
+              defaultValue={userLoop.template.key}
+              className="mt-1.5 w-full rounded-md border bg-[var(--color-background)] px-3 py-2 text-sm"
+            >
+              {userLoop.templateOptions.map((template) => (
+                <option key={template.key} value={template.key}>
+                  {template.label}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-[var(--color-muted)]">{userLoop.template.description}</p>
+          </label>
+          <label>
+            <span className="text-xs uppercase tracking-wide text-[var(--color-muted)]">Weekly focus</span>
+            <select
+              name="weeklyFocusAttributeDefinitionId"
+              defaultValue={
+                userLoop.weeklyFocus?.attributeDefinitionId ??
+                userLoop.weeklyFocusOptions[0]?.attributeDefinitionId
+              }
+              className="mt-1.5 w-full rounded-md border bg-[var(--color-background)] px-3 py-2 text-sm"
+            >
+              {userLoop.weeklyFocusOptions.map((attribute) => (
+                <option key={attribute.attributeDefinitionId} value={attribute.attributeDefinitionId}>
+                  {attribute.name}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-[var(--color-muted)]">{userLoop.template.weeklyPrompt}</p>
+          </label>
+          <div className="lg:col-span-2">
+            <button className="min-h-11 rounded-md border px-4 py-2 text-sm text-[var(--color-muted)] hover:text-[var(--color-foreground)]">
+              Save weekly focus
+            </button>
+          </div>
+        </form>
+      </section>
+
       <section className="hexis-card p-5 sm:p-6">
         <p className="hexis-eyebrow">Last 7 days</p>
         <div className="mt-3 grid gap-3 sm:grid-cols-3">

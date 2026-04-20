@@ -58,6 +58,15 @@ export async function runRetentionAction(formData: FormData): Promise<void> {
         actionKey,
       },
     });
+    if (actionKey.startsWith("weekly_focus_")) {
+      await trackProductEventSafely({
+        eventName: PRODUCT_EVENT_NAME.WEEKLY_FOCUS_SUGGESTED_ACTION_CLICKED,
+        userId: user.id,
+        properties: {
+          actionKey,
+        },
+      });
+    }
   }
 
   redirect(path);

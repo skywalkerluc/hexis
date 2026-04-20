@@ -4,6 +4,7 @@ import { LogEvidenceForm } from "@/modules/evidence/presentation/components/log-
 import { trackProductEventSafely } from "@/modules/analytics/application/track-product-event-safe";
 import { PRODUCT_EVENT_NAME } from "@/modules/analytics/domain/product-event-catalog";
 import { readUserOnboardingContext } from "@/modules/onboarding/application/read-onboarding-context.query";
+import { readUserLoopView } from "@/modules/loops/application/read-user-loop.query";
 import { prismaClient } from "@/shared/db/prisma-client";
 import { requireOnboardedUser } from "@/shared/auth/route-guards";
 
@@ -20,9 +21,10 @@ async function LogPage({
     sourceParam === "onboarding_activation" || sourceParam === "dashboard_goal"
       ? sourceParam
       : "app";
-  const [attributes, onboardingContext, evidenceCount] = await Promise.all([
+  const [attributes, onboardingContext, userLoop, evidenceCount] = await Promise.all([
     readUserAttributes(user.id),
     readUserOnboardingContext(user.id),
+    readUserLoopView(user.id),
     prismaClient.evidenceEvent.count({ where: { userId: user.id } }),
   ]);
   await trackProductEventSafely({
@@ -48,8 +50,12 @@ async function LogPage({
   }
   const goalGuidance = onboardingContext
     ? {
-        label: onboardingContext.cultivationGoal.label,
-        focusAttributeSlugs: onboardingContext.cultivationGoal.focusAttributeSlugs,
+        label: userLoop.weeklyFocus
+          ? `${onboardingContext.cultivationGoal.label} · ${userLoop.weeklyFocus.name}`
+          : userLoop.template.label,
+        focusAttributeSlugs: userLoop.weeklyFocus
+          ? [userLoop.weeklyFocus.slug]
+          : userLoop.template.focusAttributeSlugs,
         suggestedEventType: onboardingContext.cultivationGoal.suggestedEventType,
       }
     : null;

@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { completeOnboardingUseCase } from "@/modules/onboarding/application/complete-onboarding.use-case";
 import { generateRecommendationsForUser } from "@/modules/recommendations/application/generate-recommendations.use-case";
+import { initializeUserLoopForOnboarding } from "@/modules/loops/application/read-user-loop.query";
 import { trackProductEventSafely } from "@/modules/analytics/application/track-product-event-safe";
 import { PRODUCT_EVENT_NAME } from "@/modules/analytics/domain/product-event-catalog";
 import {
@@ -55,6 +56,10 @@ export async function completeOnboardingAction(formData: FormData): Promise<void
       templateLabel: result.templateLabel,
       cultivationGoal: result.cultivationGoal,
     },
+  });
+  await initializeUserLoopForOnboarding({
+    userId: user.id,
+    cultivationGoal: result.cultivationGoal,
   });
   await generateRecommendationsForUser({
     userId: user.id,

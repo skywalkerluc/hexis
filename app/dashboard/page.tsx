@@ -7,6 +7,7 @@ import { readDashboard } from "@/modules/attributes/application/read-dashboard.q
 import { syncCultivationStateAction } from "@/modules/decay/presentation/sync.actions";
 import { readRetentionView } from "@/modules/retention/application/read-retention.query";
 import { runRetentionAction } from "@/modules/retention/presentation/retention.actions";
+import { readUserLoopView } from "@/modules/loops/application/read-user-loop.query";
 import { RecommendationItem } from "@/modules/recommendations/presentation/components/recommendation-item";
 import { readUserOnboardingContext } from "@/modules/onboarding/application/read-onboarding-context.query";
 import { trackProductEventSafely } from "@/modules/analytics/application/track-product-event-safe";
@@ -19,10 +20,11 @@ async function DashboardPage({
 }) {
   const user = await requireOnboardedUser();
   const emptySearchParams: Record<string, string | string[] | undefined> = {};
-  const [dashboard, onboardingContext, retentionView, resolvedSearchParams] = await Promise.all([
+  const [dashboard, onboardingContext, retentionView, userLoop, resolvedSearchParams] = await Promise.all([
     readDashboard(user.id),
     readUserOnboardingContext(user.id),
     readRetentionView(user.id, new Date()),
+    readUserLoopView(user.id),
     searchParams ?? Promise.resolve(emptySearchParams),
   ]);
   const activationParam = resolvedSearchParams.activation;
@@ -66,6 +68,16 @@ async function DashboardPage({
         surface: "dashboard",
       },
     });
+    if (primaryRecommendation.influencedByTemplateKey === userLoop.template.key) {
+      await trackProductEventSafely({
+        eventName: PRODUCT_EVENT_NAME.TEMPLATE_INFLUENCED_RECOMMENDATION_SHOWN,
+        userId: user.id,
+        properties: {
+          recommendationId: primaryRecommendation.id,
+          templateKey: userLoop.template.key,
+        },
+      });
+    }
   }
   if (showActivationPanel && primaryRecommendation && onboardingContext) {
     await trackProductEventSafely({
@@ -120,6 +132,16 @@ async function DashboardPage({
           <Stat label="Improved" value={`${retentionView.sinceLastVisit.improvedCount}`} />
           <Stat label="Declined" value={`${retentionView.sinceLastVisit.declinedCount}`} />
           <Stat label="Stable" value={`${retentionView.sinceLastVisit.stableCount}`} />
+        </div>
+        <div className="mt-3 rounded-md border bg-[var(--color-background)] p-3">
+          <p className="hexis-eyebrow">Current loop</p>
+          <p className="mt-1 text-sm">
+            {userLoop.template.label}
+            {userLoop.weeklyFocus
+              ? ` · Weekly focus: ${userLoop.weeklyFocus.name}`
+              : " · Weekly focus not set"}
+          </p>
+          <p className="mt-1 text-xs text-[var(--color-muted)]">{userLoop.template.weeklyPrompt}</p>
         </div>
         <p className="mt-3 text-sm text-[var(--color-muted)]">
           {retentionView.sinceLastVisit.evidenceLoggedCount} evidence log(s),{" "}

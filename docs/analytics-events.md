@@ -17,6 +17,14 @@ This catalog defines stable, product-level analytics events for Hexis v1 roadmap
 | `onboarding.cultivation_goal_selected` | User selects a cultivation goal during onboarding submit | `cultivationGoal` |
 | `onboarding.goal_step_completed` | Goal step is completed as part of onboarding completion flow | `cultivationGoal` |
 | `onboarding.completed` | Onboarding completion succeeds | `templateKey`, `templateLabel`, `cultivationGoal` |
+| `loop.template_selected` | User selects a goal-based template in weekly loop settings | `templateKey` |
+| `loop.weekly_focus_set` | User sets weekly focus for the first time | `templateKey`, `weeklyFocusAttributeDefinitionId` |
+| `loop.weekly_focus_changed` | User changes weekly focus after initial setup | `templateKey`, `weeklyFocusAttributeDefinitionId` |
+| `loop.weekly_focus_suggested_action_clicked` | User clicks a weekly-focus suggested action | `actionKey` |
+| `loop.template_influenced_recommendation_shown` | Template-influenced recommendation is shown as primary | `recommendationId`, `templateKey` |
+| `feedback.opened` | In-product feedback surface is opened | `routePath` |
+| `feedback.submitted` | Feedback form is submitted successfully | `category`, `routePath` |
+| `landing.cta_clicked` | Public landing CTA is used | `target` (`login` or `signup`) |
 | `evidence.first_log_created` | First evidence event persisted for user | `eventType`, `intensity`, `impactedAttributeCount` |
 | `evidence.second_log_created` | Second evidence event persisted for user | `eventType`, `intensity`, `impactedAttributeCount` |
 | `recommendation.applied` | Recommendation apply action succeeds | `recommendationId` |

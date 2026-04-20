@@ -4,6 +4,14 @@ export const PRODUCT_EVENT_NAME = {
   ONBOARDING_CULTIVATION_GOAL_SELECTED: "onboarding.cultivation_goal_selected",
   ONBOARDING_GOAL_STEP_COMPLETED: "onboarding.goal_step_completed",
   ONBOARDING_COMPLETED: "onboarding.completed",
+  TEMPLATE_SELECTED: "loop.template_selected",
+  WEEKLY_FOCUS_SET: "loop.weekly_focus_set",
+  WEEKLY_FOCUS_CHANGED: "loop.weekly_focus_changed",
+  WEEKLY_FOCUS_SUGGESTED_ACTION_CLICKED: "loop.weekly_focus_suggested_action_clicked",
+  TEMPLATE_INFLUENCED_RECOMMENDATION_SHOWN: "loop.template_influenced_recommendation_shown",
+  FEEDBACK_OPENED: "feedback.opened",
+  FEEDBACK_SUBMITTED: "feedback.submitted",
+  LANDING_CTA_CLICKED: "landing.cta_clicked",
   FIRST_EVIDENCE_LOG_CREATED: "evidence.first_log_created",
   SECOND_EVIDENCE_LOG_CREATED: "evidence.second_log_created",
   RECOMMENDATION_APPLIED: "recommendation.applied",
@@ -51,6 +59,34 @@ export type ProductEventPropertyMap = {
     templateKey: string;
     templateLabel: string;
     cultivationGoal: string;
+  };
+  [PRODUCT_EVENT_NAME.TEMPLATE_SELECTED]: {
+    templateKey: string;
+  };
+  [PRODUCT_EVENT_NAME.WEEKLY_FOCUS_SET]: {
+    templateKey: string;
+    weeklyFocusAttributeDefinitionId: string;
+  };
+  [PRODUCT_EVENT_NAME.WEEKLY_FOCUS_CHANGED]: {
+    templateKey: string;
+    weeklyFocusAttributeDefinitionId: string;
+  };
+  [PRODUCT_EVENT_NAME.WEEKLY_FOCUS_SUGGESTED_ACTION_CLICKED]: {
+    actionKey: string;
+  };
+  [PRODUCT_EVENT_NAME.TEMPLATE_INFLUENCED_RECOMMENDATION_SHOWN]: {
+    recommendationId: string;
+    templateKey: string;
+  };
+  [PRODUCT_EVENT_NAME.FEEDBACK_OPENED]: {
+    routePath: string;
+  };
+  [PRODUCT_EVENT_NAME.FEEDBACK_SUBMITTED]: {
+    category: "FRICTION" | "IDEA" | "BUG";
+    routePath: string;
+  };
+  [PRODUCT_EVENT_NAME.LANDING_CTA_CLICKED]: {
+    target: "login" | "signup";
   };
   [PRODUCT_EVENT_NAME.FIRST_EVIDENCE_LOG_CREATED]: {
     eventType: string;

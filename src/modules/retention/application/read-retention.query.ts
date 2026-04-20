@@ -208,7 +208,7 @@ function buildSuggestedActions(input: {
 
   if (input.topRecommendation) {
     actions.push({
-      key: "log_priority_recommendation",
+      key: "weekly_focus_log_priority_recommendation",
       title: "Log one focused maintenance block",
       description: `Prioritize ${input.topRecommendation.attributeDefinition.name} while momentum is fragile.`,
       href: "/log?source=dashboard_goal",

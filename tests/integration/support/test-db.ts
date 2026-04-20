@@ -10,12 +10,14 @@ const DEFAULT_TEST_DB_URL = "postgresql://lucasferreira@localhost:5432/hexis_tes
 
 const TRUNCATE_TABLES: readonly string[] = [
   '"ProductAnalyticsEvent"',
+  '"ProductFeedback"',
   '"AuthSession"',
   '"EvidenceEventImpact"',
   '"AttributeHistoryLog"',
   '"EvidenceEvent"',
   '"Recommendation"',
   '"UserAttribute"',
+  '"UserProductLoop"',
   '"UserOnboarding"',
   '"Profile"',
   '"SystemJobRun"',

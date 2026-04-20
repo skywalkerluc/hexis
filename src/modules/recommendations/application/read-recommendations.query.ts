@@ -13,6 +13,8 @@ export type RecommendationView = {
   updatedAt: Date;
   dismissedAt: Date | null;
   appliedAt: Date | null;
+  influencedByTemplateKey: string | null;
+  influencedByWeeklyFocusSlug: string | null;
 };
 
 export async function readActiveRecommendations(
@@ -44,6 +46,8 @@ export async function readActiveRecommendations(
     updatedAt: recommendation.updatedAt,
     dismissedAt: recommendation.dismissedAt,
     appliedAt: recommendation.appliedAt,
+    influencedByTemplateKey: recommendation.influencedByTemplateKey,
+    influencedByWeeklyFocusSlug: recommendation.influencedByWeeklyFocusSlug,
   }));
 }
 
@@ -73,6 +77,8 @@ export async function readRecommendationTimeline(
     updatedAt: recommendation.updatedAt,
     dismissedAt: recommendation.dismissedAt,
     appliedAt: recommendation.appliedAt,
+    influencedByTemplateKey: recommendation.influencedByTemplateKey,
+    influencedByWeeklyFocusSlug: recommendation.influencedByWeeklyFocusSlug,
   }));
 }
 
@@ -106,5 +112,7 @@ export async function readRecommendationsForAttribute(
     updatedAt: recommendation.updatedAt,
     dismissedAt: recommendation.dismissedAt,
     appliedAt: recommendation.appliedAt,
+    influencedByTemplateKey: recommendation.influencedByTemplateKey,
+    influencedByWeeklyFocusSlug: recommendation.influencedByWeeklyFocusSlug,
   }));
 }

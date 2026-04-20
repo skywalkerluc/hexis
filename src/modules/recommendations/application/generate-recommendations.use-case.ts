@@ -4,8 +4,8 @@ import { prismaClient } from "@/shared/db/prisma-client";
 import { decimalToNumber, roundScore } from "@/shared/kernel/decimal";
 import { RECOMMENDATION_EXPIRY_DAYS } from "@/shared/kernel/scoring.constants";
 import { scoreRecommendationCandidate } from "@/modules/recommendations/domain/recommendation-scoring";
-import { readCultivationGoal } from "@/modules/onboarding/domain/cultivation-goal";
 import { buildRecommendationRationale } from "@/modules/recommendations/domain/recommendation-rationale";
+import { readLoopRecommendationContext } from "@/modules/loops/application/read-user-loop.query";
 import {
   APPLIED_REACTIVATION_DAYS,
   DISMISSED_REACTIVATION_DAYS,
@@ -15,7 +15,7 @@ import {
 const MAX_RECOMMENDATIONS = 4;
 const RECOMMENDATION_THRESHOLD = 0.2;
 const MAINTENANCE_KIND: RecommendationKind = "MAINTENANCE_BLOCK";
-const GOAL_ALIGNMENT_SCORE_BONUS = 0.6;
+const WEEKLY_FOCUS_SCORE_BONUS = 0.75;
 
 export type GenerateRecommendationsInput = {
   userId: string;
@@ -28,7 +28,8 @@ type RecommendationCandidate = {
   score: number;
   deficit: number;
   daysSinceEvent: number;
-  goalAligned: boolean;
+  templateAligned: boolean;
+  weeklyFocusAligned: boolean;
   currentValue: number;
   baseValue: number;
   potentialValue: number;
@@ -65,7 +66,9 @@ function shouldReactivateApplied(
 
 function buildCandidateList(
   input: GenerateRecommendationsInput,
-  goalFocusAttributeSlugs: Set<string>,
+  templateFocusAttributeSlugs: Set<string>,
+  templateRecommendationBonus: number,
+  weeklyFocusAttributeSlug: string | null,
   attributes: {
     status: string;
     currentValue: { toNumber(): number };
@@ -94,10 +97,17 @@ function buildCandidateList(
         potentialValue: potential,
         daysSinceEvent,
       });
-      const goalAligned = goalFocusAttributeSlugs.has(attribute.attributeDefinition.slug);
-      const prioritizedScore = goalAligned
-        ? roundScore(score.score + GOAL_ALIGNMENT_SCORE_BONUS)
-        : score.score;
+      const templateAligned = templateFocusAttributeSlugs.has(
+        attribute.attributeDefinition.slug,
+      );
+      const weeklyFocusAligned =
+        weeklyFocusAttributeSlug !== null &&
+        weeklyFocusAttributeSlug === attribute.attributeDefinition.slug;
+      const prioritizedScore = roundScore(
+        score.score +
+          (templateAligned ? templateRecommendationBonus : 0) +
+          (weeklyFocusAligned ? WEEKLY_FOCUS_SCORE_BONUS : 0),
+      );
 
       return {
         attributeDefinitionId: attribute.attributeDefinitionId,
@@ -105,7 +115,8 @@ function buildCandidateList(
         score: prioritizedScore,
         deficit: score.deficit,
         daysSinceEvent,
-        goalAligned,
+        templateAligned,
+        weeklyFocusAligned,
         currentValue: current,
         baseValue: base,
         potentialValue: potential,
@@ -120,26 +131,26 @@ function buildCandidateList(
 export async function generateRecommendationsForUser(
   input: GenerateRecommendationsInput,
 ): Promise<number> {
-  const [attributes, onboarding] = await Promise.all([
+  const [attributes, loopContext] = await Promise.all([
     prismaClient.userAttribute.findMany({
       where: { userId: input.userId },
       include: {
         attributeDefinition: true,
       },
     }),
-    prismaClient.userOnboarding.findUnique({
-      where: { userId: input.userId },
-      select: { cultivationGoal: true },
-    }),
+    readLoopRecommendationContext(input.userId),
   ]);
 
-  const goalFocusAttributeSlugs =
-    onboarding?.cultivationGoal === null || onboarding?.cultivationGoal === undefined
-      ? new Set<string>()
-      : new Set<string>(
-          readCultivationGoal(onboarding.cultivationGoal).focusAttributeSlugs,
-        );
-  const candidates = buildCandidateList(input, goalFocusAttributeSlugs, attributes);
+  const templateFocusAttributeSlugs = new Set<string>(
+    loopContext.template.focusAttributeSlugs,
+  );
+  const candidates = buildCandidateList(
+    input,
+    templateFocusAttributeSlugs,
+    loopContext.template.recommendationBonus,
+    loopContext.weeklyFocusAttributeSlug,
+    attributes,
+  );
 
   await prismaClient.recommendation.updateMany({
     where: {
@@ -150,6 +161,8 @@ export async function generateRecommendationsForUser(
     data: {
       status: "EXPIRED",
       lastEvaluatedAt: input.now,
+      influencedByTemplateKey: null,
+      influencedByWeeklyFocusSlug: null,
     },
   });
 
@@ -181,7 +194,7 @@ export async function generateRecommendationsForUser(
       potentialValue: candidate.potentialValue,
       status: candidate.status,
       daysSinceEvent: candidate.daysSinceEvent,
-      goalAligned: candidate.goalAligned,
+      goalAligned: candidate.templateAligned || candidate.weeklyFocusAligned,
     });
 
     if (!existing) {
@@ -195,6 +208,12 @@ export async function generateRecommendationsForUser(
           expectedCurrentGain,
           priorityScore: candidate.score,
           status: "ACTIVE",
+          influencedByTemplateKey: candidate.templateAligned
+            ? loopContext.template.key
+            : null,
+          influencedByWeeklyFocusSlug: candidate.weeklyFocusAligned
+            ? loopContext.weeklyFocusAttributeSlug
+            : null,
           generatedAt: input.now,
           expiresAt: addDays(input.now, RECOMMENDATION_EXPIRY_DAYS),
           lastEvaluatedAt: input.now,
@@ -214,6 +233,12 @@ export async function generateRecommendationsForUser(
           lastEvaluatedAt: input.now,
           rationale,
           expectedCurrentGain,
+          influencedByTemplateKey: candidate.templateAligned
+            ? loopContext.template.key
+            : null,
+          influencedByWeeklyFocusSlug: candidate.weeklyFocusAligned
+            ? loopContext.weeklyFocusAttributeSlug
+            : null,
         },
       });
       continue;
@@ -230,6 +255,12 @@ export async function generateRecommendationsForUser(
           lastEvaluatedAt: input.now,
           rationale,
           expectedCurrentGain,
+          influencedByTemplateKey: candidate.templateAligned
+            ? loopContext.template.key
+            : null,
+          influencedByWeeklyFocusSlug: candidate.weeklyFocusAligned
+            ? loopContext.weeklyFocusAttributeSlug
+            : null,
         },
       });
       continue;
@@ -243,6 +274,12 @@ export async function generateRecommendationsForUser(
         rationale,
         expectedCurrentGain,
         priorityScore: candidate.score,
+        influencedByTemplateKey: candidate.templateAligned
+          ? loopContext.template.key
+          : null,
+        influencedByWeeklyFocusSlug: candidate.weeklyFocusAligned
+          ? loopContext.weeklyFocusAttributeSlug
+          : null,
         generatedAt: input.now,
         expiresAt: addDays(input.now, RECOMMENDATION_EXPIRY_DAYS),
         lastEvaluatedAt: input.now,
@@ -263,6 +300,8 @@ export async function generateRecommendationsForUser(
         data: {
           status: "EXPIRED",
           lastEvaluatedAt: input.now,
+          influencedByTemplateKey: null,
+          influencedByWeeklyFocusSlug: null,
         },
       });
       continue;

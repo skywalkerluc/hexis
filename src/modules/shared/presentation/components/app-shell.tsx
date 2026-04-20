@@ -45,6 +45,9 @@ export function AppShell({
   actions,
   children,
 }: AppShellProps) {
+  const feedbackHref = `/feedback?from=${encodeURIComponent(currentPath)}`;
+  const showFeedbackAction = currentPath !== "/feedback";
+
   return (
     <div className="min-h-screen bg-[var(--color-background)] text-[var(--color-foreground)]">
       <aside className="fixed inset-y-0 left-0 hidden w-64 border-r bg-[var(--color-surface)] lg:flex lg:flex-col">
@@ -82,7 +85,15 @@ export function AppShell({
         </nav>
 
         <div className="border-t p-3">
-          <p className="text-sm">{displayName}</p>
+          {showFeedbackAction ? (
+            <Link
+              href={feedbackHref}
+              className="inline-flex min-h-10 items-center rounded-md border px-3 py-1.5 text-xs text-[var(--color-muted)] hover:text-[var(--color-foreground)]"
+            >
+              Send feedback
+            </Link>
+          ) : null}
+          <p className="mt-2 text-sm">{displayName}</p>
           <form action={logoutAction} className="mt-2">
             <button className="rounded-md border px-3 py-1.5 text-xs text-[var(--color-muted)] hover:text-[var(--color-foreground)]">
               Sign out
@@ -102,6 +113,14 @@ export function AppShell({
               <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
             </div>
             <div className="flex items-center gap-2">
+              {showFeedbackAction ? (
+                <Link
+                  href={feedbackHref}
+                  className="min-h-10 rounded-md border px-2.5 py-1.5 text-xs text-[var(--color-muted)] hover:text-[var(--color-foreground)]"
+                >
+                  Feedback
+                </Link>
+              ) : null}
               {actions}
               <form action={logoutAction} className="lg:hidden">
                 <button className="min-h-10 rounded-md border px-2.5 py-1.5 text-xs text-[var(--color-muted)]">

@@ -60,6 +60,12 @@ enum CultivationGoal {
   CONSISTENCY
 }
 
+enum FeedbackCategory {
+  FRICTION
+  IDEA
+  BUG
+}
+
 model User {
   id                String               @id @default(cuid())
   email             String               @unique
@@ -74,6 +80,8 @@ model User {
   recommendations   Recommendation[]
   onboardingAnswers UserOnboarding?
   analyticsEvents   ProductAnalyticsEvent[]
+  productLoop       UserProductLoop?
+  feedbackItems     ProductFeedback[]
 }
 
 model AuthSession {
@@ -134,6 +142,7 @@ model AttributeDefinition {
   impactRules            DecayProfile[]
   recommendations        Recommendation[]
   onboardingAssignments  OnboardingTemplateAttribute[]
+  weeklyFocusUsers       UserProductLoop[]
 }
 
 model UserAttribute {
@@ -252,6 +261,8 @@ model Recommendation {
   status                 RecommendationStatus  @default(ACTIVE)
   dismissedAt            DateTime?
   appliedAt              DateTime?
+  influencedByTemplateKey String?
+  influencedByWeeklyFocusSlug String?
   generatedAt            DateTime
   expiresAt              DateTime
   lastEvaluatedAt        DateTime
@@ -323,6 +334,21 @@ model SystemJobRun {
   @@index([jobName, status])
 }
 
+model UserProductLoop {
+  id                             String    @id @default(cuid())
+  userId                         String    @unique
+  templateKey                    String
+  weeklyFocusAttributeDefinitionId String?
+  weeklyFocusWeekStartAt         DateTime?
+  createdAt                      DateTime  @default(now())
+  updatedAt                      DateTime  @updatedAt
+
+  user                     User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  weeklyFocusAttributeDefinition AttributeDefinition? @relation(fields: [weeklyFocusAttributeDefinitionId], references: [id], onDelete: SetNull)
+
+  @@index([templateKey])
+}
+
 model ProductAnalyticsEvent {
   id         String   @id @default(cuid())
   eventName  String
@@ -335,4 +361,18 @@ model ProductAnalyticsEvent {
 
   @@index([eventName, occurredAt])
   @@index([userId, occurredAt])
+}
+
+model ProductFeedback {
+  id         String           @id @default(cuid())
+  userId     String?
+  routePath  String
+  category   FeedbackCategory
+  message    String
+  createdAt  DateTime         @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([userId, createdAt])
 }
