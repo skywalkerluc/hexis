@@ -7,6 +7,7 @@ export type DashboardView = {
   composite: number;
   improvingCount: number;
   needsCareCount: number;
+  eventCount: number;
   recentEvents: Awaited<ReturnType<typeof readEvidenceHistory>>;
   recommendations: Awaited<ReturnType<typeof readActiveRecommendations>>;
 };
@@ -28,6 +29,7 @@ export async function readDashboard(userId: string): Promise<DashboardView> {
     composite: computeCompositeScore(attributes),
     improvingCount,
     needsCareCount,
+    eventCount: events.length,
     recentEvents: events.slice(0, 6),
     recommendations,
   };

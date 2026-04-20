@@ -52,6 +52,14 @@ enum JobRunStatus {
   FAILED
 }
 
+enum CultivationGoal {
+  FOCUS
+  DISCIPLINE
+  ENERGY
+  ORGANIZATION
+  CONSISTENCY
+}
+
 model User {
   id                String               @id @default(cuid())
   email             String               @unique
@@ -286,6 +294,7 @@ model UserOnboarding {
   id          String   @id @default(cuid())
   userId      String   @unique
   templateId  String
+  cultivationGoal CultivationGoal?
   completedAt DateTime
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

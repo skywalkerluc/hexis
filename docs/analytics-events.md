@@ -1,6 +1,6 @@
-# Hexis Product Analytics Event Catalog (Sprint 1)
+# Hexis Product Analytics Event Catalog
 
-This catalog defines stable, product-level analytics events for Hexis v1 roadmap Sprint 1.
+This catalog defines stable, product-level analytics events for Hexis v1 roadmap.
 
 ## Principles
 - Product events are emitted through the analytics module only.
@@ -14,18 +14,30 @@ This catalog defines stable, product-level analytics events for Hexis v1 roadmap
 | --- | --- | --- |
 | `auth.signup_completed` | Signup succeeds | `entryPoint` |
 | `onboarding.started` | Onboarding page is opened by a non-onboarded user | `entryPoint` |
-| `onboarding.completed` | Onboarding completion succeeds | `templateKey`, `templateLabel` |
+| `onboarding.cultivation_goal_selected` | User selects a cultivation goal during onboarding submit | `cultivationGoal` |
+| `onboarding.goal_step_completed` | Goal step is completed as part of onboarding completion flow | `cultivationGoal` |
+| `onboarding.completed` | Onboarding completion succeeds | `templateKey`, `templateLabel`, `cultivationGoal` |
 | `evidence.first_log_created` | First evidence event persisted for user | `eventType`, `intensity`, `impactedAttributeCount` |
 | `evidence.second_log_created` | Second evidence event persisted for user | `eventType`, `intensity`, `impactedAttributeCount` |
 | `recommendation.applied` | Recommendation apply action succeeds | `recommendationId` |
 | `recommendation.dismissed` | Recommendation dismiss action succeeds | `recommendationId` |
 | `attribute.detail_viewed` | Attribute detail page is opened | `attributeSlug` |
 | `dashboard.viewed` | Dashboard page is opened | `source` |
-| `log.page_opened` | Log page is opened | `source` |
+| `log.page_opened` | Log page is opened | `source` (`app`, `onboarding_activation`, `dashboard_goal`) |
 | `log.submit_failed` | Log submit fails | `reason` (`validation`, `invalid_occurred_at`, `server`) |
 | `log.submit_succeeded` | Log submit succeeds | `eventType`, `intensity`, `impactedAttributeCount` |
+| `log.started_from_guided_cta` | First log session starts from guided activation CTA | `source`, `cultivationGoal` |
+| `recommendation.goal_aware_shown` | Goal-aligned recommendation is shown in activation state | `recommendationId`, `cultivationGoal` |
+| `retention.return_summary_viewed` | “Since your last visit” summary is rendered | `isReturningUser`, `improvedCount`, `declinedCount`, `needsAttentionCount` |
+| `retention.weekly_review_cta_clicked` | Weekly review CTA is clicked from dashboard | `source` |
+| `review.weekly_viewed` | Weekly review page is viewed | `source` |
+| `retention.suggested_action_clicked` | A retention suggested action is clicked | `actionKey` |
+| `recommendation.return_session_applied` | Recommendation is applied from return-session context | `recommendationId` |
+| `recommendation.return_session_dismissed` | Recommendation is dismissed from return-session context | `recommendationId` |
+| `recommendation.rationale_viewed` | Recommendation rationale is shown in a key surface | `recommendationId`, `surface` |
+| `attribute.explanation_viewed` | Attribute explanation section is viewed | `attributeSlug`, `state` |
+| `review.explanation_viewed` | Weekly explanation block is viewed | `improvedCount`, `declinedCount` |
 | `auth.return_session_after_signup` | Login succeeds for users returning after signup-age threshold | `daysSinceSignup` |
-| `review.weekly_viewed` | Reserved for Sprint 3 weekly review surface | `source` |
 
 ## Storage
 Analytics events are persisted in `ProductAnalyticsEvent` with:

@@ -54,6 +54,13 @@ const SUGGESTED_ATTRIBUTE_SLUGS: Record<string, readonly string[]> = {
 const DEFAULT_EVENT_TYPE = "TRAINING";
 const DEFAULT_INTENSITY = "MODERATE";
 const IMPACT_PREVIEW_LIMIT = 5;
+const GOAL_SUGGESTION_LIMIT = 3;
+
+type GoalGuidance = {
+  label: string;
+  focusAttributeSlugs: readonly string[];
+  suggestedEventType: "TRAINING" | "PRACTICE" | "ROUTINE" | "ACHIEVEMENT" | "RECOVERY";
+};
 
 function formatForDateTimeLocal(date: Date): string {
   const offset = date.getTimezoneOffset();
@@ -71,11 +78,19 @@ function inlineErrorMessage(
 
 export function LogEvidenceForm({
   attributes,
+  goalGuidance,
 }: {
   attributes: UserAttributeView[];
+  goalGuidance: GoalGuidance | null;
 }) {
   function suggestedSelectionForEventType(targetEventType: string): Set<string> {
-    const suggested = new Set(SUGGESTED_ATTRIBUTE_SLUGS[targetEventType] ?? []);
+    const goalSuggestion = goalGuidance?.focusAttributeSlugs ?? [];
+    const eventSuggestion = SUGGESTED_ATTRIBUTE_SLUGS[targetEventType] ?? [];
+    const suggestionSource =
+      goalSuggestion.length > 0
+        ? Array.from(new Set([...goalSuggestion, ...eventSuggestion]))
+        : eventSuggestion;
+    const suggested = new Set(suggestionSource);
     return new Set(
       attributes
         .filter((attribute) => suggested.has(attribute.slug))
@@ -87,7 +102,8 @@ export function LogEvidenceForm({
     submitEvidenceEventAction,
     INITIAL_LOG_EVIDENCE_FORM_STATE,
   );
-  const [eventType, setEventType] = useState<string>(DEFAULT_EVENT_TYPE);
+  const initialEventType = goalGuidance?.suggestedEventType ?? DEFAULT_EVENT_TYPE;
+  const [eventType, setEventType] = useState<string>(initialEventType);
   const [intensity, setIntensity] = useState<string>(DEFAULT_INTENSITY);
   const [hideSuccess, setHideSuccess] = useState<boolean>(false);
   const formRef = useRef<HTMLFormElement | null>(null);
@@ -95,12 +111,16 @@ export function LogEvidenceForm({
   const attributesSectionRef = useRef<HTMLDivElement | null>(null);
   const narrativeSectionRef = useRef<HTMLDivElement | null>(null);
   const [selectedAttributeIds, setSelectedAttributeIds] = useState<Set<string>>(() =>
-    suggestedSelectionForEventType(DEFAULT_EVENT_TYPE),
+    suggestedSelectionForEventType(initialEventType),
   );
 
   const suggestionSet = useMemo(
-    () => new Set(SUGGESTED_ATTRIBUTE_SLUGS[eventType] ?? []),
-    [eventType],
+    () =>
+      new Set([
+        ...(SUGGESTED_ATTRIBUTE_SLUGS[eventType] ?? []),
+        ...(goalGuidance?.focusAttributeSlugs ?? []),
+      ]),
+    [eventType, goalGuidance?.focusAttributeSlugs],
   );
 
   const selectedAttributes = useMemo(
@@ -202,8 +222,8 @@ export function LogEvidenceForm({
               type="button"
               onClick={() => {
                 formRef.current?.reset();
-                setSelectedAttributeIds(suggestedSelectionForEventType(DEFAULT_EVENT_TYPE));
-                setEventType(DEFAULT_EVENT_TYPE);
+                setSelectedAttributeIds(suggestedSelectionForEventType(initialEventType));
+                setEventType(initialEventType);
                 setIntensity(DEFAULT_INTENSITY);
                 setHideSuccess(true);
               }}
@@ -344,6 +364,15 @@ export function LogEvidenceForm({
               .map((attribute) => attribute.name)
               .join(", ") || "No suggestions"}
           </p>
+          {goalGuidance ? (
+            <p className="mt-1 text-xs text-[var(--color-muted)]">
+              Goal priority ({goalGuidance.label}): {attributes
+                .filter((attribute) => goalGuidance.focusAttributeSlugs.includes(attribute.slug))
+                .slice(0, GOAL_SUGGESTION_LIMIT)
+                .map((attribute) => attribute.name)
+                .join(", ") || "No direct mapping"}
+            </p>
+          ) : null}
 
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
             {attributes.map((attribute) => {

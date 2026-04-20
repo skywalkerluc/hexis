@@ -11,6 +11,12 @@ import { trackProductEventSafely } from "@/modules/analytics/application/track-p
 import { PRODUCT_EVENT_NAME } from "@/modules/analytics/domain/product-event-catalog";
 import { requireOnboardedUser } from "@/shared/auth/route-guards";
 
+const HOURS_PER_DAY = 24;
+const MINUTES_PER_HOUR = 60;
+const SECONDS_PER_MINUTE = 60;
+const MILLISECONDS_PER_SECOND = 1000;
+const MAINTAINED_DAYS_THRESHOLD = 3;
+
 async function AttributeDetailPage({
   params,
 }: {
@@ -46,6 +52,40 @@ async function AttributeDetailPage({
     ? latestHistory.nextCurrent - latestHistory.previousCurrent
     : 0;
   const recentHistory = history.slice(0, 12);
+  const influences = summarizeRecentInfluences(attribute.userAttributeId, recentEvents);
+  const daysSinceEvidence = attribute.lastEventAt
+    ? Math.floor(
+        (Date.now() - attribute.lastEventAt.getTime()) /
+          (HOURS_PER_DAY *
+            MINUTES_PER_HOUR *
+            SECONDS_PER_MINUTE *
+            MILLISECONDS_PER_SECOND),
+      )
+    : null;
+  const attributeState = inferAttributeState({
+    status: attribute.status,
+    daysSinceEvidence,
+    positiveCount: influences.helping.length,
+    negativeCount: influences.hurting.length,
+  });
+  await trackProductEventSafely({
+    eventName: PRODUCT_EVENT_NAME.ATTRIBUTE_EXPLANATION_VIEWED,
+    userId: user.id,
+    properties: {
+      attributeSlug: attribute.slug,
+      state: attributeState,
+    },
+  });
+  if (recommendations[0]) {
+    await trackProductEventSafely({
+      eventName: PRODUCT_EVENT_NAME.RECOMMENDATION_RATIONALE_VIEWED,
+      userId: user.id,
+      properties: {
+        recommendationId: recommendations[0].id,
+        surface: "attribute_detail",
+      },
+    });
+  }
 
   return (
     <AppShell
@@ -122,6 +162,48 @@ async function AttributeDetailPage({
         </div>
       </section>
 
+      <section className="hexis-card mt-6 p-5 sm:p-6">
+        <p className="hexis-eyebrow">Recent influence</p>
+        <p className="mt-2 text-sm text-[var(--color-muted)]">
+          {buildInfluenceInterpretation({
+            state: attributeState,
+            daysSinceEvidence,
+          })}
+        </p>
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          <div className="rounded-md border bg-[var(--color-background)] p-4">
+            <p className="text-xs uppercase tracking-wide text-[var(--color-muted)]">Helping recently</p>
+            {influences.helping.length === 0 ? (
+              <p className="mt-2 text-sm text-[var(--color-muted)]">No strong positive signal in recent evidence.</p>
+            ) : (
+              <ul className="mt-2 space-y-2">
+                {influences.helping.map((item) => (
+                  <li key={item.eventId} className="text-sm">
+                    <span className="font-medium">{item.title}</span>
+                    <span className="text-[var(--color-muted)]"> · +{item.deltaCurrent.toFixed(2)} current</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <div className="rounded-md border bg-[var(--color-background)] p-4">
+            <p className="text-xs uppercase tracking-wide text-[var(--color-muted)]">Hurting recently</p>
+            {influences.hurting.length === 0 ? (
+              <p className="mt-2 text-sm text-[var(--color-muted)]">No strong negative signal in recent evidence.</p>
+            ) : (
+              <ul className="mt-2 space-y-2">
+                {influences.hurting.map((item) => (
+                  <li key={item.eventId} className="text-sm">
+                    <span className="font-medium">{item.title}</span>
+                    <span className="text-[var(--color-muted)]"> · {item.deltaCurrent.toFixed(2)} current</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      </section>
+
       <div className="mt-6 grid gap-6 xl:grid-cols-12">
         <aside className="space-y-6 xl:col-span-4">
           <div className="hexis-card p-4 sm:p-5">
@@ -192,6 +274,93 @@ async function AttributeDetailPage({
       </div>
     </AppShell>
   );
+}
+
+type InfluenceItem = {
+  eventId: string;
+  title: string;
+  deltaCurrent: number;
+};
+
+function summarizeRecentInfluences(
+  userAttributeId: string,
+  recentEvents: {
+    id: string;
+    title: string;
+    impacts: { userAttributeId: string; deltaCurrent: number }[];
+  }[],
+): {
+  helping: InfluenceItem[];
+  hurting: InfluenceItem[];
+} {
+  const helping: InfluenceItem[] = [];
+  const hurting: InfluenceItem[] = [];
+
+  for (const event of recentEvents) {
+    const impact = event.impacts.find((item) => item.userAttributeId === userAttributeId);
+    if (!impact) {
+      continue;
+    }
+    const item: InfluenceItem = {
+      eventId: event.id,
+      title: event.title,
+      deltaCurrent: impact.deltaCurrent,
+    };
+    if (impact.deltaCurrent >= 0) {
+      helping.push(item);
+      continue;
+    }
+    hurting.push(item);
+  }
+
+  return {
+    helping: helping.sort((left, right) => right.deltaCurrent - left.deltaCurrent).slice(0, 3),
+    hurting: hurting.sort((left, right) => left.deltaCurrent - right.deltaCurrent).slice(0, 3),
+  };
+}
+
+function inferAttributeState(input: {
+  status: string;
+  daysSinceEvidence: number | null;
+  positiveCount: number;
+  negativeCount: number;
+}): "MAINTAINED" | "NEGLECTED" | "RECOVERING" | "MIXED" {
+  if (
+    input.status === "IMPROVING" &&
+    input.positiveCount > 0 &&
+    (input.daysSinceEvidence === null || input.daysSinceEvidence <= MAINTAINED_DAYS_THRESHOLD)
+  ) {
+    return "RECOVERING";
+  }
+  if (
+    (input.status === "DECAYING" || input.status === "AT_RISK") &&
+    (input.daysSinceEvidence === null || input.daysSinceEvidence > MAINTAINED_DAYS_THRESHOLD)
+  ) {
+    return "NEGLECTED";
+  }
+  if (input.positiveCount > 0 && input.negativeCount > 0) {
+    return "MIXED";
+  }
+  return "MAINTAINED";
+}
+
+function buildInfluenceInterpretation(input: {
+  state: "MAINTAINED" | "NEGLECTED" | "RECOVERING" | "MIXED";
+  daysSinceEvidence: number | null;
+}): string {
+  if (input.state === "RECOVERING") {
+    return "Recent reinforcement is helping this attribute recover after prior drift.";
+  }
+  if (input.state === "NEGLECTED") {
+    return "This attribute is slipping through lack of reinforcement. A short maintenance block is the fastest stabilizer.";
+  }
+  if (input.state === "MIXED") {
+    return "Signals are mixed: some recent actions helped, while others pulled this attribute down.";
+  }
+  if (input.daysSinceEvidence === null) {
+    return "No direct evidence yet. Logging one concrete block will establish the first reliable signal.";
+  }
+  return "This attribute appears stable because recent reinforcement is still present.";
 }
 
 function Metric({ label, value }: { label: string; value: string }) {

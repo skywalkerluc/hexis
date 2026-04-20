@@ -4,6 +4,8 @@ import { prismaClient } from "@/shared/db/prisma-client";
 import { decimalToNumber, roundScore } from "@/shared/kernel/decimal";
 import { RECOMMENDATION_EXPIRY_DAYS } from "@/shared/kernel/scoring.constants";
 import { scoreRecommendationCandidate } from "@/modules/recommendations/domain/recommendation-scoring";
+import { readCultivationGoal } from "@/modules/onboarding/domain/cultivation-goal";
+import { buildRecommendationRationale } from "@/modules/recommendations/domain/recommendation-rationale";
 import {
   APPLIED_REACTIVATION_DAYS,
   DISMISSED_REACTIVATION_DAYS,
@@ -13,6 +15,7 @@ import {
 const MAX_RECOMMENDATIONS = 4;
 const RECOMMENDATION_THRESHOLD = 0.2;
 const MAINTENANCE_KIND: RecommendationKind = "MAINTENANCE_BLOCK";
+const GOAL_ALIGNMENT_SCORE_BONUS = 0.6;
 
 export type GenerateRecommendationsInput = {
   userId: string;
@@ -25,6 +28,11 @@ type RecommendationCandidate = {
   score: number;
   deficit: number;
   daysSinceEvent: number;
+  goalAligned: boolean;
+  currentValue: number;
+  baseValue: number;
+  potentialValue: number;
+  status: string;
 };
 
 function shouldReactivateDismissed(
@@ -57,6 +65,7 @@ function shouldReactivateApplied(
 
 function buildCandidateList(
   input: GenerateRecommendationsInput,
+  goalFocusAttributeSlugs: Set<string>,
   attributes: {
     status: string;
     currentValue: { toNumber(): number };
@@ -65,7 +74,7 @@ function buildCandidateList(
     lastEventAt: Date | null;
     createdAt: Date;
     attributeDefinitionId: string;
-    attributeDefinition: { name: string };
+    attributeDefinition: { name: string; slug: string };
   }[],
 ): RecommendationCandidate[] {
   return attributes
@@ -85,13 +94,22 @@ function buildCandidateList(
         potentialValue: potential,
         daysSinceEvent,
       });
+      const goalAligned = goalFocusAttributeSlugs.has(attribute.attributeDefinition.slug);
+      const prioritizedScore = goalAligned
+        ? roundScore(score.score + GOAL_ALIGNMENT_SCORE_BONUS)
+        : score.score;
 
       return {
         attributeDefinitionId: attribute.attributeDefinitionId,
         attributeName: attribute.attributeDefinition.name,
-        score: score.score,
+        score: prioritizedScore,
         deficit: score.deficit,
         daysSinceEvent,
+        goalAligned,
+        currentValue: current,
+        baseValue: base,
+        potentialValue: potential,
+        status: attribute.status,
       };
     })
     .filter((candidate) => candidate.score > RECOMMENDATION_THRESHOLD)
@@ -102,14 +120,26 @@ function buildCandidateList(
 export async function generateRecommendationsForUser(
   input: GenerateRecommendationsInput,
 ): Promise<number> {
-  const attributes = await prismaClient.userAttribute.findMany({
-    where: { userId: input.userId },
-    include: {
-      attributeDefinition: true,
-    },
-  });
+  const [attributes, onboarding] = await Promise.all([
+    prismaClient.userAttribute.findMany({
+      where: { userId: input.userId },
+      include: {
+        attributeDefinition: true,
+      },
+    }),
+    prismaClient.userOnboarding.findUnique({
+      where: { userId: input.userId },
+      select: { cultivationGoal: true },
+    }),
+  ]);
 
-  const candidates = buildCandidateList(input, attributes);
+  const goalFocusAttributeSlugs =
+    onboarding?.cultivationGoal === null || onboarding?.cultivationGoal === undefined
+      ? new Set<string>()
+      : new Set<string>(
+          readCultivationGoal(onboarding.cultivationGoal).focusAttributeSlugs,
+        );
+  const candidates = buildCandidateList(input, goalFocusAttributeSlugs, attributes);
 
   await prismaClient.recommendation.updateMany({
     where: {
@@ -144,6 +174,15 @@ export async function generateRecommendationsForUser(
   for (const candidate of candidates) {
     const existing = existingByAttribute.get(candidate.attributeDefinitionId);
     const expectedCurrentGain = Math.max(0.2, roundScore(candidate.deficit * 0.4));
+    const rationale = buildRecommendationRationale({
+      attributeName: candidate.attributeName,
+      currentValue: candidate.currentValue,
+      baseValue: candidate.baseValue,
+      potentialValue: candidate.potentialValue,
+      status: candidate.status,
+      daysSinceEvent: candidate.daysSinceEvent,
+      goalAligned: candidate.goalAligned,
+    });
 
     if (!existing) {
       await prismaClient.recommendation.create({
@@ -152,7 +191,7 @@ export async function generateRecommendationsForUser(
           attributeDefinitionId: candidate.attributeDefinitionId,
           kind: MAINTENANCE_KIND,
           title: `${candidate.attributeName}: maintenance block`,
-          rationale: `${candidate.daysSinceEvent} day(s) since last evidence. Current is below stable base trend.`,
+          rationale,
           expectedCurrentGain,
           priorityScore: candidate.score,
           status: "ACTIVE",
@@ -173,7 +212,7 @@ export async function generateRecommendationsForUser(
         data: {
           priorityScore: candidate.score,
           lastEvaluatedAt: input.now,
-          rationale: `${candidate.daysSinceEvent} day(s) since last evidence. Current is below stable base trend.`,
+          rationale,
           expectedCurrentGain,
         },
       });
@@ -189,7 +228,7 @@ export async function generateRecommendationsForUser(
         data: {
           priorityScore: candidate.score,
           lastEvaluatedAt: input.now,
-          rationale: `${candidate.daysSinceEvent} day(s) since last evidence. Current is below stable base trend.`,
+          rationale,
           expectedCurrentGain,
         },
       });
@@ -201,7 +240,7 @@ export async function generateRecommendationsForUser(
       data: {
         status: "ACTIVE",
         title: `${candidate.attributeName}: maintenance block`,
-        rationale: `${candidate.daysSinceEvent} day(s) since last evidence. Current is below stable base trend.`,
+        rationale,
         expectedCurrentGain,
         priorityScore: candidate.score,
         generatedAt: input.now,

@@ -1,6 +1,8 @@
 export const PRODUCT_EVENT_NAME = {
   SIGNUP_COMPLETED: "auth.signup_completed",
   ONBOARDING_STARTED: "onboarding.started",
+  ONBOARDING_CULTIVATION_GOAL_SELECTED: "onboarding.cultivation_goal_selected",
+  ONBOARDING_GOAL_STEP_COMPLETED: "onboarding.goal_step_completed",
   ONBOARDING_COMPLETED: "onboarding.completed",
   FIRST_EVIDENCE_LOG_CREATED: "evidence.first_log_created",
   SECOND_EVIDENCE_LOG_CREATED: "evidence.second_log_created",
@@ -11,6 +13,16 @@ export const PRODUCT_EVENT_NAME = {
   LOG_PAGE_OPENED: "log.page_opened",
   LOG_SUBMIT_FAILED: "log.submit_failed",
   LOG_SUBMIT_SUCCEEDED: "log.submit_succeeded",
+  LOG_STARTED_FROM_GUIDED_CTA: "log.started_from_guided_cta",
+  GOAL_AWARE_RECOMMENDATION_SHOWN: "recommendation.goal_aware_shown",
+  RETURN_SUMMARY_VIEWED: "retention.return_summary_viewed",
+  WEEKLY_REVIEW_CTA_CLICKED: "retention.weekly_review_cta_clicked",
+  SUGGESTED_ACTION_CLICKED: "retention.suggested_action_clicked",
+  RETURN_SESSION_RECOMMENDATION_APPLIED: "recommendation.return_session_applied",
+  RETURN_SESSION_RECOMMENDATION_DISMISSED: "recommendation.return_session_dismissed",
+  RECOMMENDATION_RATIONALE_VIEWED: "recommendation.rationale_viewed",
+  ATTRIBUTE_EXPLANATION_VIEWED: "attribute.explanation_viewed",
+  WEEKLY_EXPLANATION_VIEWED: "review.explanation_viewed",
   RETURN_SESSION_AFTER_SIGNUP: "auth.return_session_after_signup",
   WEEKLY_REVIEW_VIEWED: "review.weekly_viewed",
 } as const;
@@ -29,9 +41,16 @@ export type ProductEventPropertyMap = {
   [PRODUCT_EVENT_NAME.ONBOARDING_STARTED]: {
     entryPoint: "onboarding_page";
   };
+  [PRODUCT_EVENT_NAME.ONBOARDING_CULTIVATION_GOAL_SELECTED]: {
+    cultivationGoal: string;
+  };
+  [PRODUCT_EVENT_NAME.ONBOARDING_GOAL_STEP_COMPLETED]: {
+    cultivationGoal: string;
+  };
   [PRODUCT_EVENT_NAME.ONBOARDING_COMPLETED]: {
     templateKey: string;
     templateLabel: string;
+    cultivationGoal: string;
   };
   [PRODUCT_EVENT_NAME.FIRST_EVIDENCE_LOG_CREATED]: {
     eventType: string;
@@ -56,7 +75,7 @@ export type ProductEventPropertyMap = {
     source: "app";
   };
   [PRODUCT_EVENT_NAME.LOG_PAGE_OPENED]: {
-    source: "app";
+    source: "app" | "onboarding_activation" | "dashboard_goal";
   };
   [PRODUCT_EVENT_NAME.LOG_SUBMIT_FAILED]: {
     reason: "validation" | "invalid_occurred_at" | "server";
@@ -65,6 +84,44 @@ export type ProductEventPropertyMap = {
     eventType: string;
     intensity: string;
     impactedAttributeCount: number;
+  };
+  [PRODUCT_EVENT_NAME.LOG_STARTED_FROM_GUIDED_CTA]: {
+    source: "onboarding_activation" | "dashboard_goal";
+    cultivationGoal: string;
+  };
+  [PRODUCT_EVENT_NAME.GOAL_AWARE_RECOMMENDATION_SHOWN]: {
+    recommendationId: string;
+    cultivationGoal: string;
+  };
+  [PRODUCT_EVENT_NAME.RETURN_SUMMARY_VIEWED]: {
+    isReturningUser: boolean;
+    improvedCount: number;
+    declinedCount: number;
+    needsAttentionCount: number;
+  };
+  [PRODUCT_EVENT_NAME.WEEKLY_REVIEW_CTA_CLICKED]: {
+    source: "dashboard";
+  };
+  [PRODUCT_EVENT_NAME.SUGGESTED_ACTION_CLICKED]: {
+    actionKey: string;
+  };
+  [PRODUCT_EVENT_NAME.RETURN_SESSION_RECOMMENDATION_APPLIED]: {
+    recommendationId: string;
+  };
+  [PRODUCT_EVENT_NAME.RETURN_SESSION_RECOMMENDATION_DISMISSED]: {
+    recommendationId: string;
+  };
+  [PRODUCT_EVENT_NAME.RECOMMENDATION_RATIONALE_VIEWED]: {
+    recommendationId: string;
+    surface: "dashboard" | "weekly_review" | "attribute_detail";
+  };
+  [PRODUCT_EVENT_NAME.ATTRIBUTE_EXPLANATION_VIEWED]: {
+    attributeSlug: string;
+    state: "MAINTAINED" | "NEGLECTED" | "RECOVERING" | "MIXED";
+  };
+  [PRODUCT_EVENT_NAME.WEEKLY_EXPLANATION_VIEWED]: {
+    improvedCount: number;
+    declinedCount: number;
   };
   [PRODUCT_EVENT_NAME.RETURN_SESSION_AFTER_SIGNUP]: {
     daysSinceSignup: number;

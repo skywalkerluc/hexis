@@ -10,16 +10,19 @@ import {
   ONBOARDING_EMPHASIS_CURRENT_DELTA,
   ONBOARDING_EMPHASIS_POTENTIAL_DELTA,
 } from "@/modules/onboarding/domain/onboarding.constants";
+import type { CultivationGoal } from "@/modules/onboarding/domain/cultivation-goal";
 import { buildHistoryLogEntry } from "@/modules/evidence/domain/history-log.factory";
 
 export type CompleteOnboardingInput = {
   userId: string;
   templateKey: string;
+  cultivationGoal: CultivationGoal;
 };
 
 export type CompleteOnboardingResult = {
   templateKey: string;
   templateLabel: string;
+  cultivationGoal: CultivationGoal;
 };
 
 export async function completeOnboardingUseCase(
@@ -77,6 +80,7 @@ export async function completeOnboardingUseCase(
         data: {
           userId: input.userId,
           templateId: template.id,
+          cultivationGoal: input.cultivationGoal,
           completedAt: now,
         },
       });
@@ -177,5 +181,6 @@ export async function completeOnboardingUseCase(
   return {
     templateKey: template.key,
     templateLabel: template.label,
+    cultivationGoal: input.cultivationGoal,
   };
 }

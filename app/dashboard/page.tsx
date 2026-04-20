@@ -5,13 +5,28 @@ import { StatusBadge } from "@/modules/shared/presentation/components/status-bad
 import { requireOnboardedUser } from "@/shared/auth/route-guards";
 import { readDashboard } from "@/modules/attributes/application/read-dashboard.query";
 import { syncCultivationStateAction } from "@/modules/decay/presentation/sync.actions";
+import { readRetentionView } from "@/modules/retention/application/read-retention.query";
+import { runRetentionAction } from "@/modules/retention/presentation/retention.actions";
 import { RecommendationItem } from "@/modules/recommendations/presentation/components/recommendation-item";
+import { readUserOnboardingContext } from "@/modules/onboarding/application/read-onboarding-context.query";
 import { trackProductEventSafely } from "@/modules/analytics/application/track-product-event-safe";
 import { PRODUCT_EVENT_NAME } from "@/modules/analytics/domain/product-event-catalog";
 
-async function DashboardPage() {
+async function DashboardPage({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const user = await requireOnboardedUser();
-  const dashboard = await readDashboard(user.id);
+  const emptySearchParams: Record<string, string | string[] | undefined> = {};
+  const [dashboard, onboardingContext, retentionView, resolvedSearchParams] = await Promise.all([
+    readDashboard(user.id),
+    readUserOnboardingContext(user.id),
+    readRetentionView(user.id, new Date()),
+    searchParams ?? Promise.resolve(emptySearchParams),
+  ]);
+  const activationParam = resolvedSearchParams.activation;
+  const showActivationPanel = activationParam === "1" && dashboard.eventCount < 2;
   await trackProductEventSafely({
     eventName: PRODUCT_EVENT_NAME.DASHBOARD_VIEWED,
     userId: user.id,
@@ -29,6 +44,39 @@ async function DashboardPage() {
   const secondaryRecommendations = dashboard.recommendations.slice(1);
   const primaryAttentionAttribute = atRiskOrDecaying[0];
   const snapshotAttributes = dashboard.attributes.slice(0, 4);
+  const recommendedLogHref = onboardingContext
+    ? `/log?source=dashboard_goal&goal=${onboardingContext.cultivationGoal.value}`
+    : "/log";
+  await trackProductEventSafely({
+    eventName: PRODUCT_EVENT_NAME.RETURN_SUMMARY_VIEWED,
+    userId: user.id,
+    properties: {
+      isReturningUser: retentionView.sinceLastVisit.isReturningUser,
+      improvedCount: retentionView.sinceLastVisit.improvedCount,
+      declinedCount: retentionView.sinceLastVisit.declinedCount,
+      needsAttentionCount: retentionView.sinceLastVisit.needsAttentionCount,
+    },
+  });
+  if (primaryRecommendation) {
+    await trackProductEventSafely({
+      eventName: PRODUCT_EVENT_NAME.RECOMMENDATION_RATIONALE_VIEWED,
+      userId: user.id,
+      properties: {
+        recommendationId: primaryRecommendation.id,
+        surface: "dashboard",
+      },
+    });
+  }
+  if (showActivationPanel && primaryRecommendation && onboardingContext) {
+    await trackProductEventSafely({
+      eventName: PRODUCT_EVENT_NAME.GOAL_AWARE_RECOMMENDATION_SHOWN,
+      userId: user.id,
+      properties: {
+        recommendationId: primaryRecommendation.id,
+        cultivationGoal: onboardingContext.cultivationGoal.value,
+      },
+    });
+  }
 
   return (
     <AppShell
@@ -43,12 +91,94 @@ async function DashboardPage() {
               Sync state
             </button>
           </form>
-          <Link href="/log" className="min-h-11 rounded-md bg-[var(--color-foreground)] px-3 py-2 text-sm text-[var(--color-background)]">
+          <Link href={recommendedLogHref} className="min-h-11 rounded-md bg-[var(--color-foreground)] px-3 py-2 text-sm text-[var(--color-background)]">
             Log evidence
           </Link>
         </div>
       }
     >
+      <section className="hexis-card mb-6 p-5 sm:p-6">
+        <div className="flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <p className="hexis-eyebrow">Since your last visit</p>
+            <p className="mt-1 text-sm text-[var(--color-muted)]">
+              {retentionView.sinceLastVisit.isReturningUser
+                ? `Changes since ${retentionView.sinceLastVisit.sinceAt.toLocaleString()}.`
+                : "No prior dashboard visit yet. This reflects your recent baseline."}
+            </p>
+          </div>
+          <form action={runRetentionAction}>
+            <input type="hidden" name="kind" value="WEEKLY_REVIEW_CTA" />
+            <input type="hidden" name="actionKey" value="open_weekly_review" />
+            <input type="hidden" name="path" value="/weekly-review" />
+            <button className="min-h-10 rounded-md border px-3 py-2 text-xs text-[var(--color-muted)] hover:text-[var(--color-foreground)]">
+              Open weekly review
+            </button>
+          </form>
+        </div>
+        <div className="mt-3 grid gap-3 sm:grid-cols-3">
+          <Stat label="Improved" value={`${retentionView.sinceLastVisit.improvedCount}`} />
+          <Stat label="Declined" value={`${retentionView.sinceLastVisit.declinedCount}`} />
+          <Stat label="Stable" value={`${retentionView.sinceLastVisit.stableCount}`} />
+        </div>
+        <p className="mt-3 text-sm text-[var(--color-muted)]">
+          {retentionView.sinceLastVisit.evidenceLoggedCount} evidence log(s),{" "}
+          {retentionView.sinceLastVisit.newRecommendationCount} recommendation update(s).{" "}
+          {retentionView.sinceLastVisit.needsAttentionCount > 0
+            ? `${retentionView.sinceLastVisit.needsAttentionCount} attribute(s) need attention.`
+            : "No critical drift currently."}
+        </p>
+        <p className="mt-2 text-sm text-[var(--color-muted)]">
+          {retentionView.sinceLastVisit.interpretation}
+        </p>
+        {retentionView.suggestedActions.length > 0 ? (
+          <div className="mt-4 grid gap-2 lg:grid-cols-2">
+            {retentionView.suggestedActions.map((action) => (
+              <div key={action.key} className="rounded-md border bg-[var(--color-background)] p-3">
+                <p className="text-sm font-medium">{action.title}</p>
+                <p className="mt-1 text-xs text-[var(--color-muted)]">{action.description}</p>
+                <form action={runRetentionAction} className="mt-2">
+                  <input type="hidden" name="kind" value="SUGGESTED_ACTION" />
+                  <input type="hidden" name="actionKey" value={action.key} />
+                  <input type="hidden" name="path" value={action.href} />
+                  <button className="min-h-10 rounded-md border px-3 py-1.5 text-xs text-[var(--color-muted)] hover:text-[var(--color-foreground)]">
+                    Open
+                  </button>
+                </form>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </section>
+
+      {showActivationPanel && onboardingContext ? (
+        <section className="hexis-card mb-6 p-5 sm:p-6">
+          <p className="hexis-eyebrow">Activation</p>
+          <h2 className="mt-2 text-xl font-semibold">
+            Start with {onboardingContext.cultivationGoal.label}
+          </h2>
+          <p className="mt-2 max-w-3xl text-sm text-[var(--color-muted)]">
+            Hexis tracks how your attributes respond to evidence over time. Current moves fastest,
+            base shifts slower, potential changes slowest. Maintenance protects trend; neglect can
+            trigger decay.
+          </p>
+          <p className="mt-2 text-sm text-[var(--color-muted)]">
+            First action: log one concrete block aligned with {onboardingContext.cultivationGoal.label.toLowerCase()}.
+          </p>
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <Link
+              href={`/log?source=onboarding_activation&goal=${onboardingContext.cultivationGoal.value}`}
+              className="min-h-11 rounded-md bg-[var(--color-foreground)] px-4 py-2 text-sm text-[var(--color-background)]"
+            >
+              Log first meaningful evidence
+            </Link>
+            <Link href="/attributes" className="min-h-11 rounded-md border px-4 py-2 text-sm text-[var(--color-muted)]">
+              Review attribute model
+            </Link>
+          </div>
+        </section>
+      ) : null}
+
       <section className="hexis-card p-5 sm:p-6">
         <p className="hexis-eyebrow">What to do next</p>
         {primaryRecommendation ? (
