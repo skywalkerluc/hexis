@@ -3,11 +3,11 @@
 import Link from "next/link";
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import type { UserAttributeView } from "@/modules/attributes/application/read-attributes.query";
+import { submitEvidenceEventAction } from "@/modules/evidence/presentation/evidence.actions";
 import {
   INITIAL_LOG_EVIDENCE_FORM_STATE,
-  submitEvidenceEventAction,
   type LogEvidenceFormState,
-} from "@/modules/evidence/presentation/evidence.actions";
+} from "@/modules/evidence/presentation/evidence.types";
 
 const EVENT_TYPES = [
   {
@@ -183,7 +183,7 @@ export function LogEvidenceForm({
           </p>
           {state.successSummary.impacts.length > 0 ? (
             <ul className="mt-2 space-y-1 text-xs text-[var(--color-muted)]">
-              {state.successSummary.impacts.map((impact) => (
+              {state.successSummary.impacts.map((impact: { attributeName: string; deltaCurrent: number }) => (
                 <li key={impact.attributeName}>
                   {impact.attributeName}: {impact.deltaCurrent >= 0 ? "+" : ""}
                   {impact.deltaCurrent.toFixed(2)} current

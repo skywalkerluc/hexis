@@ -1,6 +1,8 @@
 "use server";
 
 import { z } from "zod";
+import { INITIAL_LOG_EVIDENCE_FORM_STATE } from "./evidence.types";
+import type { LogEvidenceFormState } from "./evidence.types";
 import { createEvidenceEventUseCase } from "@/modules/evidence/application/create-evidence-event.use-case";
 import { generateRecommendationsForUser } from "@/modules/recommendations/application/generate-recommendations.use-case";
 import { requireOnboardedUser } from "@/shared/auth/route-guards";
@@ -22,30 +24,6 @@ const evidenceSubmissionSchema = z.object({
   userAttributeIds: z.array(z.string().min(1)).min(1),
 });
 
-export type LogEvidenceFormState = {
-  status: "idle" | "error" | "success";
-  fieldErrors: {
-    title?: string;
-    occurredAt?: string;
-    attributes?: string;
-  };
-  formError?: string;
-  successSummary?: {
-    title: string;
-    eventType: string;
-    intensity: string;
-    occurredAt: string;
-    impacts: {
-      attributeName: string;
-      deltaCurrent: number;
-    }[];
-  };
-};
-
-export const INITIAL_LOG_EVIDENCE_FORM_STATE: LogEvidenceFormState = {
-  status: "idle",
-  fieldErrors: {},
-};
 
 function buildValidationErrorState(
   parsed: z.SafeParseError<{
