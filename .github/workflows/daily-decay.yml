@@ -1,0 +1,43 @@
+name: Daily Decay Job
+
+on:
+  schedule:
+    # 08:00 UTC daily
+    - cron: "0 8 * * *"
+  workflow_dispatch:
+
+jobs:
+  run-daily-decay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Trigger Hexis daily decay
+        env:
+          HEXIS_BASE_URL: ${{ secrets.HEXIS_BASE_URL }}
+          HEXIS_JOB_SECRET: ${{ secrets.HEXIS_JOB_SECRET }}
+          WORKER_ID: github-actions
+        run: |
+          if [ -z "$HEXIS_BASE_URL" ]; then
+            echo "HEXIS_BASE_URL secret is missing"
+            exit 1
+          fi
+
+          if [ -z "$HEXIS_JOB_SECRET" ]; then
+            echo "HEXIS_JOB_SECRET secret is missing"
+            exit 1
+          fi
+
+          RESPONSE_FILE=$(mktemp)
+          STATUS_CODE=$(curl -sS -o "$RESPONSE_FILE" -w "%{http_code}" \
+            -X POST "$HEXIS_BASE_URL/api/jobs/daily-decay" \
+            -H "x-hexis-job-secret: $HEXIS_JOB_SECRET" \
+            -H "x-hexis-worker-id: $WORKER_ID" \
+            -H "content-type: application/json")
+
+          echo "HTTP status: $STATUS_CODE"
+          cat "$RESPONSE_FILE"
+
+          if [ "$STATUS_CODE" -lt 200 ] || [ "$STATUS_CODE" -ge 300 ]; then
+            echo "Daily decay job failed"
+            exit 1
+          fi
