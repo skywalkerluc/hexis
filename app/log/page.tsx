@@ -1,6 +1,5 @@
 import { AppShell } from "@/modules/shared/presentation/components/app-shell";
 import { readUserAttributes } from "@/modules/attributes/application/read-attributes.query";
-import { createEvidenceEventAction } from "@/modules/evidence/presentation/evidence.actions";
 import { LogEvidenceForm } from "@/modules/evidence/presentation/components/log-evidence-form";
 import { requireOnboardedUser } from "@/shared/auth/route-guards";
 
@@ -20,7 +19,7 @@ async function LogPage() {
         and why this event matters.
       </p>
       <div className="mt-6">
-        <LogEvidenceForm attributes={attributes} action={createEvidenceEventAction} />
+        <LogEvidenceForm attributes={attributes} />
       </div>
     </AppShell>
   );

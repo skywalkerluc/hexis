@@ -1,11 +1,97 @@
 "use server";
 
-import { redirect } from "next/navigation";
+import { z } from "zod";
 import { createEvidenceEventUseCase } from "@/modules/evidence/application/create-evidence-event.use-case";
 import { generateRecommendationsForUser } from "@/modules/recommendations/application/generate-recommendations.use-case";
 import { requireOnboardedUser } from "@/shared/auth/route-guards";
+import { prismaClient } from "@/shared/db/prisma-client";
 
-export async function createEvidenceEventAction(formData: FormData): Promise<void> {
+const EVENT_TYPES = ["TRAINING", "PRACTICE", "ROUTINE", "ACHIEVEMENT", "RECOVERY"] as const;
+const INTENSITIES = ["LIGHT", "MODERATE", "INTENSE"] as const;
+const TITLE_MIN_LENGTH = 3;
+const TITLE_MAX_LENGTH = 160;
+const NOTES_MAX_LENGTH = 2000;
+const SUCCESS_IMPACT_PREVIEW_LIMIT = 5;
+
+const evidenceSubmissionSchema = z.object({
+  title: z.string().min(TITLE_MIN_LENGTH).max(TITLE_MAX_LENGTH),
+  notes: z.string().max(NOTES_MAX_LENGTH).optional(),
+  eventType: z.enum(EVENT_TYPES),
+  intensity: z.enum(INTENSITIES),
+  occurredAt: z.string().min(1),
+  userAttributeIds: z.array(z.string().min(1)).min(1),
+});
+
+export type LogEvidenceFormState = {
+  status: "idle" | "error" | "success";
+  fieldErrors: {
+    title?: string;
+    occurredAt?: string;
+    attributes?: string;
+  };
+  formError?: string;
+  successSummary?: {
+    title: string;
+    eventType: string;
+    intensity: string;
+    occurredAt: string;
+    impacts: {
+      attributeName: string;
+      deltaCurrent: number;
+    }[];
+  };
+};
+
+export const INITIAL_LOG_EVIDENCE_FORM_STATE: LogEvidenceFormState = {
+  status: "idle",
+  fieldErrors: {},
+};
+
+function buildValidationErrorState(
+  parsed: z.SafeParseError<{
+    title: string;
+    notes?: string | undefined;
+    eventType: "TRAINING" | "PRACTICE" | "ROUTINE" | "ACHIEVEMENT" | "RECOVERY";
+    intensity: "LIGHT" | "MODERATE" | "INTENSE";
+    occurredAt: string;
+    userAttributeIds: string[];
+  }>,
+): LogEvidenceFormState {
+  const fieldErrors: LogEvidenceFormState["fieldErrors"] = {};
+  for (const issue of parsed.error.issues) {
+    const field = issue.path[0];
+    if (field === "title") {
+      fieldErrors.title = "Provide a concise title (3-160 chars).";
+    }
+    if (field === "occurredAt") {
+      fieldErrors.occurredAt = "Choose when this evidence occurred.";
+    }
+    if (field === "userAttributeIds") {
+      fieldErrors.attributes = "Select at least one affected attribute.";
+    }
+  }
+
+  return {
+    status: "error",
+    fieldErrors,
+    formError: "Please correct the highlighted fields and submit again.",
+  };
+}
+
+function invalidDateState(): LogEvidenceFormState {
+  return {
+    status: "error",
+    fieldErrors: {
+      occurredAt: "Provide a valid date and time.",
+    },
+    formError: "Evidence time is invalid.",
+  };
+}
+
+export async function submitEvidenceEventAction(
+  _: LogEvidenceFormState,
+  formData: FormData,
+): Promise<LogEvidenceFormState> {
   const user = await requireOnboardedUser();
 
   const titleValue = formData.get("title");
@@ -15,34 +101,105 @@ export async function createEvidenceEventAction(formData: FormData): Promise<voi
   const notesValue = formData.get("notes");
   const attributeIds = formData.getAll("attributeId");
 
-  if (typeof titleValue !== "string") {
-    throw new Error("Title is required");
-  }
-  if (typeof eventTypeValue !== "string") {
-    throw new Error("Event type is required");
-  }
-  if (typeof intensityValue !== "string") {
-    throw new Error("Intensity is required");
-  }
-  if (typeof occurredAtValue !== "string") {
-    throw new Error("Occurred date is required");
-  }
+  const resolvedAttributeIds = attributeIds.flatMap((value) => {
+    if (typeof value !== "string" || value.length === 0) {
+      return [];
+    }
+    return [value];
+  });
 
-  const resolvedAttributeIds = attributeIds.flatMap((value) =>
-    typeof value === "string" && value.length > 0 ? [value] : [],
-  );
-
-  await createEvidenceEventUseCase({
-    userId: user.id,
-    title: titleValue,
-    notes: typeof notesValue === "string" && notesValue.length > 0 ? notesValue : undefined,
-    eventType: eventTypeValue as "TRAINING" | "PRACTICE" | "ROUTINE" | "ACHIEVEMENT" | "RECOVERY",
-    intensity: intensityValue as "LIGHT" | "MODERATE" | "INTENSE",
-    occurredAt: new Date(occurredAtValue),
+  const parsed = evidenceSubmissionSchema.safeParse({
+    title: typeof titleValue === "string" ? titleValue : "",
+    notes:
+      typeof notesValue === "string" && notesValue.length > 0 ? notesValue : undefined,
+    eventType: typeof eventTypeValue === "string" ? eventTypeValue : "",
+    intensity: typeof intensityValue === "string" ? intensityValue : "",
+    occurredAt: typeof occurredAtValue === "string" ? occurredAtValue : "",
     userAttributeIds: resolvedAttributeIds,
   });
 
-  await generateRecommendationsForUser({ userId: user.id, now: new Date() });
+  if (!parsed.success) {
+    return buildValidationErrorState(parsed);
+  }
 
-  redirect("/history?logged=1");
+  const occurredAt = new Date(parsed.data.occurredAt);
+  if (Number.isNaN(occurredAt.getTime())) {
+    return invalidDateState();
+  }
+
+  try {
+    const result = await createEvidenceEventUseCase({
+      userId: user.id,
+      title: parsed.data.title,
+      notes: parsed.data.notes,
+      eventType: parsed.data.eventType,
+      intensity: parsed.data.intensity,
+      occurredAt,
+      userAttributeIds: parsed.data.userAttributeIds,
+    });
+
+    await generateRecommendationsForUser({ userId: user.id, now: new Date() });
+
+    const persistedEvent = await prismaClient.evidenceEvent.findUnique({
+      where: { id: result.eventId },
+      include: {
+        impacts: {
+          include: {
+            userAttribute: {
+              include: {
+                attributeDefinition: {
+                  select: { name: true },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!persistedEvent || persistedEvent.userId !== user.id) {
+      return {
+        status: "success",
+        fieldErrors: {},
+        successSummary: {
+          title: parsed.data.title,
+          eventType: parsed.data.eventType,
+          intensity: parsed.data.intensity,
+          occurredAt: occurredAt.toLocaleString(),
+          impacts: [],
+        },
+      };
+    }
+
+    return {
+      status: "success",
+      fieldErrors: {},
+      successSummary: {
+        title: persistedEvent.title,
+        eventType: persistedEvent.eventType,
+        intensity: persistedEvent.intensity,
+        occurredAt: persistedEvent.occurredAt.toLocaleString(),
+        impacts: persistedEvent.impacts
+          .slice(0, SUCCESS_IMPACT_PREVIEW_LIMIT)
+          .map((impact) => ({
+            attributeName: impact.userAttribute.attributeDefinition.name,
+            deltaCurrent: impact.deltaCurrent.toNumber(),
+          })),
+      },
+    };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Could not record evidence.";
+    return {
+      status: "error",
+      fieldErrors: {},
+      formError: message,
+    };
+  }
+}
+
+export async function createEvidenceEventAction(formData: FormData): Promise<void> {
+  const result = await submitEvidenceEventAction(INITIAL_LOG_EVIDENCE_FORM_STATE, formData);
+  if (result.status !== "success") {
+    throw new Error(result.formError ?? "Could not record evidence.");
+  }
 }

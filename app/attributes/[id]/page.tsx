@@ -36,6 +36,7 @@ async function AttributeDetailPage({
   const currentDelta = latestHistory
     ? latestHistory.nextCurrent - latestHistory.previousCurrent
     : 0;
+  const recentHistory = history.slice(0, 12);
 
   return (
     <AppShell
@@ -44,14 +45,14 @@ async function AttributeDetailPage({
       currentPath="/attributes"
       displayName={user.profile?.displayName ?? user.email}
       actions={
-        <Link href="/log" className="rounded-md bg-[var(--color-foreground)] px-3 py-2 text-sm text-[var(--color-background)]">
+        <Link href="/log" className="min-h-10 rounded-md bg-[var(--color-foreground)] px-3 py-2 text-sm text-[var(--color-background)]">
           Log practice
         </Link>
       }
     >
-      <Link href="/attributes" className="text-sm text-[var(--color-muted)]">← All attributes</Link>
+      <Link href="/attributes" className="inline-flex rounded-md border px-3 py-1.5 text-sm text-[var(--color-muted)]">← All attributes</Link>
 
-      <section className="hexis-card mt-5 p-6">
+      <section className="hexis-card mt-5 p-5 sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h2 className="text-3xl font-semibold">{attribute.name}</h2>
@@ -90,29 +91,31 @@ async function AttributeDetailPage({
         </div>
       </section>
 
+      <section className="hexis-card mt-6 p-5 sm:p-6">
+        <p className="hexis-eyebrow">How to read this attribute</p>
+        <div className="mt-3 grid gap-3">
+          <ExplainRow
+            label="Current"
+            description="Responds fastest to your recent behavior."
+          />
+          <ExplainRow
+            label="Base"
+            description="Moves slower and reflects durable conditioning."
+          />
+          <ExplainRow
+            label="Potential"
+            description="Hardest to change and defines your sustainable ceiling."
+          />
+          <ExplainRow
+            label="Maintenance vs decay"
+            description="Regular evidence keeps current near base; long neglect lowers current first, then can erode base."
+          />
+        </div>
+      </section>
+
       <div className="mt-6 grid gap-6 xl:grid-cols-12">
-        <section className="hexis-card p-6 xl:col-span-8">
-          <p className="hexis-eyebrow">History log</p>
-          <p className="mt-1 text-xs text-[var(--color-muted)]">Every change includes a cause and explicit deltas.</p>
-
-          <ul className="mt-4 space-y-3">
-            {history.map((entry) => (
-              <li key={entry.id} className="rounded-md border bg-[var(--color-background)] p-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <p className="text-xs uppercase tracking-wider text-[var(--color-muted)]">{entry.causeType}</p>
-                  <p className="text-xs text-[var(--color-muted)]">{entry.changedAt.toLocaleString()}</p>
-                </div>
-                <p className="mt-2 text-sm">{entry.explanation}</p>
-                <p className="mt-2 text-xs text-[var(--color-muted)]">
-                  Current {entry.previousCurrent.toFixed(2)} → {entry.nextCurrent.toFixed(2)} · Base {entry.previousBase.toFixed(2)} → {entry.nextBase.toFixed(2)} · Potential {entry.previousPotential.toFixed(2)} → {entry.nextPotential.toFixed(2)}
-                </p>
-              </li>
-            ))}
-          </ul>
-        </section>
-
         <aside className="space-y-6 xl:col-span-4">
-          <div className="hexis-card p-5">
+          <div className="hexis-card p-4 sm:p-5">
             <p className="hexis-eyebrow">Recommendation state</p>
             <ul className="mt-3 space-y-3">
               {recommendations.length === 0 ? (
@@ -128,8 +131,10 @@ async function AttributeDetailPage({
               )}
             </ul>
           </div>
+        </aside>
 
-          <div className="hexis-card p-5">
+        <section className="xl:col-span-8 space-y-6">
+          <div className="hexis-card p-4 sm:p-5">
             <p className="hexis-eyebrow">Recent evidence</p>
             <ul className="mt-3 space-y-2">
               {recentEvents.length === 0 ? (
@@ -146,7 +151,35 @@ async function AttributeDetailPage({
               )}
             </ul>
           </div>
-        </aside>
+
+          <div className="hexis-card p-5 sm:p-6">
+            <div className="flex flex-wrap items-end justify-between gap-2">
+              <div>
+                <p className="hexis-eyebrow">History log</p>
+                <p className="mt-1 text-xs text-[var(--color-muted)]">Every change includes a cause and explicit deltas.</p>
+              </div>
+              {history.length > recentHistory.length ? (
+                <Link href="/history" className="text-xs text-[var(--color-muted)]">
+                  Open full history
+                </Link>
+              ) : null}
+            </div>
+            <ul className="mt-4 space-y-3">
+              {recentHistory.map((entry) => (
+                <li key={entry.id} className="rounded-md border bg-[var(--color-background)] p-3 sm:p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <p className="text-xs uppercase tracking-wider text-[var(--color-muted)]">{entry.causeType}</p>
+                    <p className="text-xs text-[var(--color-muted)]">{entry.changedAt.toLocaleString()}</p>
+                  </div>
+                  <p className="mt-2 text-sm">{entry.explanation}</p>
+                  <p className="mt-2 text-xs text-[var(--color-muted)]">
+                    Cur {entry.previousCurrent.toFixed(2)} → {entry.nextCurrent.toFixed(2)} · Base {entry.previousBase.toFixed(2)} → {entry.nextBase.toFixed(2)} · Pot {entry.previousPotential.toFixed(2)} → {entry.nextPotential.toFixed(2)}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
       </div>
     </AppShell>
   );
@@ -166,6 +199,15 @@ function InfoPill({ label, value }: { label: string; value: string }) {
     <div className="rounded-md border bg-[var(--color-background)] p-3">
       <p className="hexis-eyebrow">{label}</p>
       <p className="mt-1 text-xs text-[var(--color-muted)]">{value}</p>
+    </div>
+  );
+}
+
+function ExplainRow({ label, description }: { label: string; description: string }) {
+  return (
+    <div className="rounded-md border bg-[var(--color-background)] px-4 py-3">
+      <p className="text-xs uppercase tracking-wide text-[var(--color-muted)]">{label}</p>
+      <p className="mt-1 text-sm">{description}</p>
     </div>
   );
 }

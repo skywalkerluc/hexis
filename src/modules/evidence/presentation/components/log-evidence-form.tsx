@@ -1,7 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import Link from "next/link";
+import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import type { UserAttributeView } from "@/modules/attributes/application/read-attributes.query";
+import {
+  INITIAL_LOG_EVIDENCE_FORM_STATE,
+  submitEvidenceEventAction,
+  type LogEvidenceFormState,
+} from "@/modules/evidence/presentation/evidence.actions";
 
 const EVENT_TYPES = [
   {
@@ -47,6 +53,7 @@ const SUGGESTED_ATTRIBUTE_SLUGS: Record<string, readonly string[]> = {
 
 const DEFAULT_EVENT_TYPE = "TRAINING";
 const DEFAULT_INTENSITY = "MODERATE";
+const IMPACT_PREVIEW_LIMIT = 5;
 
 function formatForDateTimeLocal(date: Date): string {
   const offset = date.getTimezoneOffset();
@@ -54,24 +61,41 @@ function formatForDateTimeLocal(date: Date): string {
   return local.toISOString().slice(0, 16);
 }
 
+function inlineErrorMessage(
+  state: LogEvidenceFormState,
+  field: keyof LogEvidenceFormState["fieldErrors"],
+): string | null {
+  const message = state.fieldErrors[field];
+  return message ?? null;
+}
+
 export function LogEvidenceForm({
   attributes,
-  action,
 }: {
   attributes: UserAttributeView[];
-  action: (formData: FormData) => Promise<void>;
 }) {
+  function suggestedSelectionForEventType(targetEventType: string): Set<string> {
+    const suggested = new Set(SUGGESTED_ATTRIBUTE_SLUGS[targetEventType] ?? []);
+    return new Set(
+      attributes
+        .filter((attribute) => suggested.has(attribute.slug))
+        .map((attribute) => attribute.userAttributeId),
+    );
+  }
+
+  const [state, formAction, isPending] = useActionState(
+    submitEvidenceEventAction,
+    INITIAL_LOG_EVIDENCE_FORM_STATE,
+  );
   const [eventType, setEventType] = useState<string>(DEFAULT_EVENT_TYPE);
   const [intensity, setIntensity] = useState<string>(DEFAULT_INTENSITY);
-  const [selectedAttributeIds, setSelectedAttributeIds] = useState<Set<string>>(
-    () => {
-      const suggested = new Set(SUGGESTED_ATTRIBUTE_SLUGS[DEFAULT_EVENT_TYPE] ?? []);
-      return new Set(
-        attributes
-          .filter((attribute) => suggested.has(attribute.slug))
-          .map((attribute) => attribute.userAttributeId),
-      );
-    },
+  const [hideSuccess, setHideSuccess] = useState<boolean>(false);
+  const formRef = useRef<HTMLFormElement | null>(null);
+  const timingSectionRef = useRef<HTMLDivElement | null>(null);
+  const attributesSectionRef = useRef<HTMLDivElement | null>(null);
+  const narrativeSectionRef = useRef<HTMLDivElement | null>(null);
+  const [selectedAttributeIds, setSelectedAttributeIds] = useState<Set<string>>(() =>
+    suggestedSelectionForEventType(DEFAULT_EVENT_TYPE),
   );
 
   const suggestionSet = useMemo(
@@ -86,6 +110,33 @@ export function LogEvidenceForm({
 
   const intensityLabel = INTENSITIES.find((item) => item.value === intensity)?.label ?? "Moderate";
   const occurredAtDefault = useMemo(() => formatForDateTimeLocal(new Date()), []);
+  const hasOccurredAtError = Boolean(inlineErrorMessage(state, "occurredAt"));
+  const hasAttributeError = Boolean(inlineErrorMessage(state, "attributes"));
+  const hasTitleError = Boolean(inlineErrorMessage(state, "title"));
+  const hasAnyFieldError = hasOccurredAtError || hasAttributeError || hasTitleError;
+
+  useEffect(() => {
+    if (state.status !== "error") {
+      return;
+    }
+    if (hasOccurredAtError) {
+      timingSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+    if (hasAttributeError) {
+      attributesSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+    if (hasTitleError) {
+      narrativeSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [hasAttributeError, hasOccurredAtError, hasTitleError, state.status]);
+
+  useEffect(() => {
+    if (state.status === "success") {
+      setHideSuccess(false);
+    }
+  }, [state.status, state.successSummary?.occurredAt]);
 
   function toggleAttribute(attributeId: string): void {
     setSelectedAttributeIds((previous) => {
@@ -114,9 +165,58 @@ export function LogEvidenceForm({
   }
 
   return (
-    <form action={action} className="grid gap-6 lg:grid-cols-12">
-      <section className="space-y-5 lg:col-span-8">
-        <div className="hexis-card p-5">
+    <form ref={formRef} action={formAction} className="grid gap-5 lg:grid-cols-12 lg:gap-6">
+      {state.formError ? (
+        <div className="lg:col-span-12 rounded-md border border-[var(--color-critical)] bg-[var(--color-surface-raised)] px-4 py-3 text-sm text-[var(--color-foreground)]">
+          <p>{state.formError}</p>
+          {hasAnyFieldError ? (
+            <p className="mt-1 text-xs text-[var(--color-muted)]">Review the highlighted sections below.</p>
+          ) : null}
+        </div>
+      ) : null}
+
+      {state.status === "success" && state.successSummary && !hideSuccess ? (
+        <div className="lg:col-span-12 rounded-md border border-[var(--color-teal)] bg-[var(--color-surface-raised)] px-4 py-3">
+          <p className="text-sm font-medium">Evidence recorded</p>
+          <p className="mt-1 text-xs text-[var(--color-muted)]">
+            {state.successSummary.title} · {state.successSummary.eventType} · {state.successSummary.intensity} · {state.successSummary.occurredAt}
+          </p>
+          {state.successSummary.impacts.length > 0 ? (
+            <ul className="mt-2 space-y-1 text-xs text-[var(--color-muted)]">
+              {state.successSummary.impacts.map((impact) => (
+                <li key={impact.attributeName}>
+                  {impact.attributeName}: {impact.deltaCurrent >= 0 ? "+" : ""}
+                  {impact.deltaCurrent.toFixed(2)} current
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <Link href="/history?logged=1" className="inline-flex min-h-10 items-center rounded-md border px-3 py-2 text-xs text-[var(--color-muted)] hover:text-[var(--color-foreground)]">
+              Review history
+            </Link>
+            <Link href="/dashboard" className="inline-flex min-h-10 items-center rounded-md border px-3 py-2 text-xs text-[var(--color-muted)] hover:text-[var(--color-foreground)]">
+              Continue to dashboard
+            </Link>
+            <button
+              type="button"
+              onClick={() => {
+                formRef.current?.reset();
+                setSelectedAttributeIds(suggestedSelectionForEventType(DEFAULT_EVENT_TYPE));
+                setEventType(DEFAULT_EVENT_TYPE);
+                setIntensity(DEFAULT_INTENSITY);
+                setHideSuccess(true);
+              }}
+              className="inline-flex min-h-10 items-center rounded-md border border-[var(--color-teal)] px-3 py-2 text-xs text-[var(--color-teal)] hover:bg-[var(--color-surface-raised)]"
+            >
+              Log another
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      <section className="space-y-4 lg:col-span-8 lg:space-y-5">
+        <div className="hexis-card p-4 sm:p-5">
           <p className="hexis-eyebrow">Evidence type</p>
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
             {EVENT_TYPES.map((item) => {
@@ -146,7 +246,16 @@ export function LogEvidenceForm({
           </div>
         </div>
 
-        <div className="hexis-card p-5">
+        <div
+          className="hexis-card p-4 sm:p-5"
+          style={{
+            borderColor: hasOccurredAtError ? "var(--color-critical)" : "var(--color-hairline)",
+            background: hasOccurredAtError
+              ? "color-mix(in oklab, var(--color-critical) 7%, var(--color-surface))"
+              : "var(--color-surface)",
+          }}
+          ref={timingSectionRef}
+        >
           <p className="hexis-eyebrow">Load and timing</p>
           <div className="mt-3 grid gap-4 sm:grid-cols-2">
             <div>
@@ -191,25 +300,39 @@ export function LogEvidenceForm({
                 defaultValue={occurredAtDefault}
                 className="mt-1.5 w-full rounded-md border bg-[var(--color-background)] px-3 py-2 text-sm"
               />
+              {inlineErrorMessage(state, "occurredAt") ? (
+                <p className="mt-1 text-xs text-[var(--color-critical)]">
+                  {inlineErrorMessage(state, "occurredAt")}
+                </p>
+              ) : null}
             </label>
           </div>
         </div>
 
-        <div className="hexis-card p-5">
+        <div
+          className="hexis-card p-4 sm:p-5"
+          style={{
+            borderColor: hasAttributeError ? "var(--color-critical)" : "var(--color-hairline)",
+            background: hasAttributeError
+              ? "color-mix(in oklab, var(--color-critical) 7%, var(--color-surface))"
+              : "var(--color-surface)",
+          }}
+          ref={attributesSectionRef}
+        >
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="hexis-eyebrow">Affected attributes</p>
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={applySuggestedSelection}
-                className="rounded-md border px-2.5 py-1 text-xs text-[var(--color-muted)] hover:text-[var(--color-foreground)]"
+                className="rounded-md border px-2.5 py-1.5 text-xs text-[var(--color-muted)] hover:text-[var(--color-foreground)]"
               >
                 Use suggested
               </button>
               <button
                 type="button"
                 onClick={clearSelection}
-                className="rounded-md border px-2.5 py-1 text-xs text-[var(--color-muted)] hover:text-[var(--color-foreground)]"
+                className="rounded-md border px-2.5 py-1.5 text-xs text-[var(--color-muted)] hover:text-[var(--color-foreground)]"
               >
                 Clear
               </button>
@@ -247,14 +370,29 @@ export function LogEvidenceForm({
                     value={attribute.userAttributeId}
                     checked={selected}
                     onChange={() => toggleAttribute(attribute.userAttributeId)}
+                    className="h-4 w-4"
                   />
                 </label>
               );
             })}
           </div>
+          {inlineErrorMessage(state, "attributes") ? (
+            <p className="mt-2 text-xs text-[var(--color-critical)]">
+              {inlineErrorMessage(state, "attributes")}
+            </p>
+          ) : null}
         </div>
 
-        <div className="hexis-card p-5">
+        <div
+          className="hexis-card p-4 sm:p-5"
+          style={{
+            borderColor: hasTitleError ? "var(--color-critical)" : "var(--color-hairline)",
+            background: hasTitleError
+              ? "color-mix(in oklab, var(--color-critical) 7%, var(--color-surface))"
+              : "var(--color-surface)",
+          }}
+          ref={narrativeSectionRef}
+        >
           <p className="hexis-eyebrow">Narrative</p>
           <label className="mt-3 block">
             <span className="text-xs uppercase tracking-wider text-[var(--color-muted)]">Title</span>
@@ -264,6 +402,11 @@ export function LogEvidenceForm({
               className="mt-1.5 w-full rounded-md border bg-[var(--color-background)] px-3 py-2 text-sm"
               placeholder="e.g. 90-minute deep work block"
             />
+            {inlineErrorMessage(state, "title") ? (
+              <p className="mt-1 text-xs text-[var(--color-critical)]">
+                {inlineErrorMessage(state, "title")}
+              </p>
+            ) : null}
           </label>
           <label className="mt-4 block">
             <span className="text-xs uppercase tracking-wider text-[var(--color-muted)]">Notes</span>
@@ -278,7 +421,7 @@ export function LogEvidenceForm({
       </section>
 
       <aside className="lg:col-span-4">
-        <div className="hexis-card sticky top-24 p-5">
+        <div className="hexis-card p-4 sm:p-5 lg:sticky lg:top-24">
           <p className="hexis-eyebrow">Impact summary</p>
           <p className="mt-2 text-sm text-[var(--color-muted)]">
             {selectedAttributes.length === 0
@@ -287,11 +430,11 @@ export function LogEvidenceForm({
           </p>
           {selectedAttributes.length > 0 ? (
             <ul className="mt-3 space-y-1.5 text-xs text-[var(--color-muted)]">
-              {selectedAttributes.slice(0, 5).map((attribute) => (
+              {selectedAttributes.slice(0, IMPACT_PREVIEW_LIMIT).map((attribute) => (
                 <li key={attribute.userAttributeId}>{attribute.name}</li>
               ))}
-              {selectedAttributes.length > 5 ? (
-                <li>+{selectedAttributes.length - 5} more</li>
+              {selectedAttributes.length > IMPACT_PREVIEW_LIMIT ? (
+                <li>+{selectedAttributes.length - IMPACT_PREVIEW_LIMIT} more</li>
               ) : null}
             </ul>
           ) : null}
@@ -299,10 +442,10 @@ export function LogEvidenceForm({
             Submission persists event, attribute impacts and explainable history in one atomic flow.
           </p>
           <button
-            disabled={selectedAttributes.length === 0}
-            className="mt-5 w-full rounded-md bg-[var(--color-foreground)] px-4 py-2.5 text-sm font-medium text-[var(--color-background)] disabled:cursor-not-allowed disabled:opacity-40"
+            disabled={selectedAttributes.length === 0 || isPending}
+            className="mt-5 min-h-11 w-full rounded-md bg-[var(--color-foreground)] px-4 py-3 text-sm font-medium text-[var(--color-background)] disabled:cursor-not-allowed disabled:opacity-40"
           >
-            Record evidence
+            {isPending ? "Recording..." : "Record evidence"}
           </button>
         </div>
       </aside>

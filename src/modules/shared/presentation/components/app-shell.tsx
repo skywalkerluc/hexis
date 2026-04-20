@@ -93,7 +93,7 @@ export function AppShell({
 
       <div className="lg:pl-64">
         <header
-          className="sticky top-0 z-10 border-b px-5 py-4 backdrop-blur lg:px-10"
+          className="sticky top-0 z-10 border-b px-4 py-3 backdrop-blur sm:px-5 lg:px-10 lg:py-4"
           style={{ background: "color-mix(in oklab, var(--color-background) 88%, transparent)" }}
         >
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -104,7 +104,7 @@ export function AppShell({
             <div className="flex items-center gap-2">
               {actions}
               <form action={logoutAction} className="lg:hidden">
-                <button className="rounded-md border px-2.5 py-1.5 text-xs text-[var(--color-muted)]">
+                <button className="min-h-10 rounded-md border px-2.5 py-1.5 text-xs text-[var(--color-muted)]">
                   Sign out
                 </button>
               </form>
@@ -125,7 +125,7 @@ export function AppShell({
               <li key={item.href}>
                 <Link
                   href={item.href}
-                  className="block rounded-md px-2 py-2 text-center text-[11px]"
+                  className="block min-h-11 rounded-md px-2 py-2.5 text-center text-xs"
                   style={{
                     color: active ? "var(--color-foreground)" : "var(--color-muted)",
                     background: active ? "var(--color-surface-raised)" : "transparent",
