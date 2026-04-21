@@ -73,7 +73,7 @@ export function RecommendationItem({
           <form action={dismissRecommendationAction}>
             <input type="hidden" name="recommendationId" value={recommendation.id} />
             <input type="hidden" name="source" value={actionSource ?? "default"} />
-            <button className="min-h-11 w-full rounded-md border px-3 py-2 text-sm text-[var(--color-muted)] hover:text-[var(--color-foreground)]">
+            <button className="hexis-button-secondary w-full px-3 py-2 text-sm">
               Dismiss
             </button>
           </form>

@@ -6,7 +6,7 @@ const NAV_ITEMS: readonly { href: string; label: string }[] = [
   { href: "/attributes", label: "Attributes" },
   { href: "/log", label: "Log" },
   { href: "/history", label: "History" },
-  { href: "/profile", label: "Profile" },
+  { href: "/profile", label: "Account" },
   { href: "/settings", label: "Settings" },
 ] as const;
 
@@ -15,7 +15,7 @@ const MOBILE_NAV_ITEMS: readonly { href: string; label: string }[] = [
   { href: "/attributes", label: "Attributes" },
   { href: "/log", label: "Log" },
   { href: "/weekly-review", label: "Review" },
-  { href: "/profile", label: "Profile" },
+  { href: "/settings", label: "Account" },
 ] as const;
 
 export type AppShellProps = {
@@ -30,6 +30,9 @@ export type AppShellProps = {
 function isActivePath(currentPath: string, itemPath: string): boolean {
   if (currentPath === itemPath) {
     return true;
+  }
+  if (itemPath === "/settings") {
+    return currentPath.startsWith("/settings") || currentPath.startsWith("/profile");
   }
   if (itemPath === "/dashboard") {
     return false;
@@ -88,14 +91,14 @@ export function AppShell({
           {showFeedbackAction ? (
             <Link
               href={feedbackHref}
-              className="inline-flex min-h-10 items-center rounded-md border px-3 py-1.5 text-xs text-[var(--color-muted)] hover:text-[var(--color-foreground)]"
+              className="hexis-button-secondary px-3 py-1.5 text-xs"
             >
               Send feedback
             </Link>
           ) : null}
           <p className="mt-2 text-sm">{displayName}</p>
           <form action={logoutAction} className="mt-2">
-            <button className="rounded-md border px-3 py-1.5 text-xs text-[var(--color-muted)] hover:text-[var(--color-foreground)]">
+            <button className="hexis-button-secondary px-3 py-1.5 text-xs">
               Sign out
             </button>
           </form>
@@ -116,7 +119,7 @@ export function AppShell({
               {showFeedbackAction ? (
                 <Link
                   href={feedbackHref}
-                  className="hidden min-h-10 rounded-md border px-2.5 py-1.5 text-xs text-[var(--color-muted)] hover:text-[var(--color-foreground)] sm:inline-flex sm:items-center"
+                  className="hexis-button-secondary hidden px-2.5 py-1.5 text-xs sm:inline-flex sm:items-center"
                 >
                   Feedback
                 </Link>

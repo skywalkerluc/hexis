@@ -30,6 +30,9 @@ async function OnboardingPage() {
           Pick one current priority, then choose a starting template. You can refine this later.
         </p>
         <p className="mt-1 text-xs text-[var(--color-muted)]">About 1 minute to finish.</p>
+        <p className="mt-1 max-w-3xl text-xs text-[var(--color-muted)]">
+          Initial calibration only: baseline first, then goal and template emphasis.
+        </p>
 
         <form id="onboarding-form" action={completeOnboardingAction} className="mt-6 space-y-4 sm:space-y-6">
           <section className="hexis-card p-4 sm:p-5">
@@ -82,6 +85,7 @@ async function OnboardingPage() {
             <ul className="mt-2 grid gap-1.5 text-xs sm:text-sm text-[var(--color-muted)] md:grid-cols-2">
               <li>Attributes respond to real evidence over time.</li>
               <li>Current moves fastest, base slower, potential slowest.</li>
+              <li>Starting values are calibration anchors. First logs personalize the model.</li>
               <li>Maintenance keeps current near base.</li>
               <li>Neglect can reduce current and eventually erode base.</li>
               <li>Recommendations help direct your next meaningful block.</li>

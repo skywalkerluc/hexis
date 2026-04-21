@@ -215,7 +215,7 @@ export function LogEvidenceForm({
             </ul>
           ) : null}
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            <Link href="/dashboard" className="inline-flex min-h-10 items-center rounded-md border px-3 py-2 text-xs text-[var(--color-muted)] hover:text-[var(--color-foreground)]">
+            <Link href="/dashboard" className="hexis-button-secondary px-3 py-2 text-xs">
               Continue to dashboard
             </Link>
             <button
@@ -393,14 +393,14 @@ export function LogEvidenceForm({
               <button
                 type="button"
                 onClick={applySuggestedSelection}
-                className="rounded-md border px-2.5 py-1.5 text-xs text-[var(--color-muted)] hover:text-[var(--color-foreground)]"
+                className="hexis-button-secondary px-2.5 py-1.5 text-xs"
               >
                 Use suggested
               </button>
               <button
                 type="button"
                 onClick={clearSelection}
-                className="rounded-md border px-2.5 py-1.5 text-xs text-[var(--color-muted)] hover:text-[var(--color-foreground)]"
+                className="hexis-button-secondary px-2.5 py-1.5 text-xs"
               >
                 Clear
               </button>

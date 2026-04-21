@@ -24,6 +24,9 @@ async function HomePage() {
             Hexis helps you track how focus, discipline, energy and related attributes shift over
             time through real evidence, maintenance, and decay-aware feedback.
           </p>
+          <p className="mt-2 text-xs text-[var(--color-muted)]">
+            Initial calibration: start from a neutral baseline, then personalize through your first logs.
+          </p>
           <div className="mt-6 flex flex-wrap gap-3">
             <form action={landingCtaAction}>
               <input type="hidden" name="target" value="signup" />
@@ -33,7 +36,7 @@ async function HomePage() {
             </form>
             <form action={landingCtaAction}>
               <input type="hidden" name="target" value="login" />
-              <button className="min-h-11 rounded-md border px-4 py-2 text-sm text-[var(--color-muted)] hover:text-[var(--color-foreground)]">
+              <button className="hexis-button-secondary px-4 py-2 text-sm">
                 Log in
               </button>
             </form>
@@ -44,6 +47,7 @@ async function HomePage() {
           <p className="hexis-eyebrow">What to expect</p>
           <ul className="mt-4 space-y-3 text-sm text-[var(--color-muted)]">
             <li>Attributes are visible from 0 to 20, with explainable current/base/potential movement.</li>
+            <li>Starting values are calibration anchors, not a score claim about you.</li>
             <li>Evidence logs shape attribute trends and recommendation priority.</li>
             <li>Return summaries and weekly review keep attention on what matters now.</li>
           </ul>

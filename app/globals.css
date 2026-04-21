@@ -14,6 +14,7 @@
   --color-critical: oklch(0.55 0.13 18);
   --color-hairline: oklch(0.28 0.01 260);
   --color-muted: oklch(0.68 0.01 260);
+  color-scheme: dark;
 }
 
 * {
@@ -35,6 +36,20 @@ a {
   text-decoration: none;
 }
 
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  background: transparent;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
 .hexis-eyebrow {
   font-size: 0.7rem;
   letter-spacing: 0.16em;
@@ -47,4 +62,15 @@ a {
   border: 1px solid var(--color-hairline);
   border-radius: var(--radius);
   background: var(--color-surface);
+}
+
+.hexis-button-secondary {
+  display: inline-flex;
+  min-height: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-hairline);
+  border-radius: 0.375rem;
+  background: var(--color-surface);
+  color: var(--color-foreground);
 }

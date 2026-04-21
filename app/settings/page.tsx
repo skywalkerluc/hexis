@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { AppShell } from "@/modules/shared/presentation/components/app-shell";
+import { logoutAction } from "@/modules/auth/presentation/auth.actions";
 import { sessionCookieName } from "@/modules/auth/application/session.service";
 import { requireOnboardedUser } from "@/shared/auth/route-guards";
 
@@ -18,6 +19,23 @@ async function SettingsPage() {
     >
       <div className="space-y-5">
         <section className="hexis-card p-6">
+          <h2 className="text-lg font-semibold">Account shortcuts</h2>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Link href="/profile" className="hexis-button-secondary px-3 py-2 text-sm">
+              Edit profile
+            </Link>
+            <Link href="/history" className="hexis-button-secondary px-3 py-2 text-sm">
+              View history
+            </Link>
+            <form action={logoutAction}>
+              <button className="hexis-button-secondary px-3 py-2 text-sm">
+                Sign out
+              </button>
+            </form>
+          </div>
+        </section>
+
+        <section className="hexis-card p-6">
           <h2 className="text-lg font-semibold">Account status</h2>
           <p className="mt-2 text-sm text-[var(--color-muted)]">
             Current session: {hasSessionCookie ? "active on this device" : "not active"}.
@@ -27,7 +45,7 @@ async function SettingsPage() {
           </p>
           <Link
             href="/feedback?from=/settings"
-            className="mt-3 inline-flex min-h-10 items-center rounded-md border px-3 py-2 text-sm text-[var(--color-muted)] hover:text-[var(--color-foreground)]"
+            className="hexis-button-secondary mt-3 px-3 py-2 text-sm"
           >
             Request account help
           </Link>
@@ -40,7 +58,7 @@ async function SettingsPage() {
           </p>
           <Link
             href="/feedback?from=/settings"
-            className="mt-3 inline-flex min-h-10 items-center rounded-md border px-3 py-2 text-sm text-[var(--color-muted)] hover:text-[var(--color-foreground)]"
+            className="hexis-button-secondary mt-3 px-3 py-2 text-sm"
           >
             Open feedback form
           </Link>

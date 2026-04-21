@@ -29,6 +29,7 @@ async function DashboardPage({
   ]);
   const activationParam = resolvedSearchParams.activation;
   const showActivationPanel = activationParam === "1" && dashboard.eventCount < 2;
+  const showInitialBaselinePanel = dashboard.eventCount === 0;
   await trackProductEventSafely({
     eventName: PRODUCT_EVENT_NAME.DASHBOARD_VIEWED,
     userId: user.id,
@@ -134,6 +135,21 @@ async function DashboardPage({
               Review attribute model
             </Link>
           </div>
+        </section>
+      ) : null}
+
+      {showInitialBaselinePanel ? (
+        <section className="hexis-card mb-6 p-4 sm:p-5">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="hexis-eyebrow">Initial calibration</p>
+            <span className="rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wide text-[var(--color-muted)]">
+              Baseline
+            </span>
+          </div>
+          <p className="mt-2 text-sm text-[var(--color-muted)]">
+            This is your calibrated starting point, not a performance claim. First logs personalize
+            it quickly.
+          </p>
         </section>
       ) : null}
 

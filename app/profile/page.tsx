@@ -94,14 +94,26 @@ async function ProfilePage() {
       </form>
 
       <div className="mt-6 flex flex-wrap items-center gap-3 sm:hidden">
+        <Link
+          href="/settings"
+          className="hexis-button-secondary px-4 py-2 text-sm"
+        >
+          Settings
+        </Link>
+        <Link
+          href="/history"
+          className="hexis-button-secondary px-4 py-2 text-sm"
+        >
+          History
+        </Link>
         <form action={logoutAction}>
-          <button className="min-h-11 rounded-md border px-4 py-2 text-sm text-[var(--color-muted)] hover:text-[var(--color-foreground)]">
+          <button className="hexis-button-secondary px-4 py-2 text-sm">
             Sign out
           </button>
         </form>
         <Link
           href="/feedback"
-          className="inline-flex min-h-11 items-center rounded-md border px-4 py-2 text-sm text-[var(--color-muted)] hover:text-[var(--color-foreground)]"
+          className="hexis-button-secondary px-4 py-2 text-sm"
         >
           Send feedback
         </Link>
