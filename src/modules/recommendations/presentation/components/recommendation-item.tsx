@@ -27,7 +27,7 @@ function lifecycleContext(recommendation: RecommendationView): string {
   return "Expired. It only returns if renewed risk appears.";
 }
 
-const RATIONALE_PREVIEW_MAX = 140;
+const RATIONALE_PREVIEW_MAX = 96;
 
 function compactRationale(text: string): string {
   if (text.length <= RATIONALE_PREVIEW_MAX) {
@@ -66,7 +66,7 @@ export function RecommendationItem({
           <form action={applyRecommendationAction}>
             <input type="hidden" name="recommendationId" value={recommendation.id} />
             <input type="hidden" name="source" value={actionSource ?? "default"} />
-            <button className="min-h-11 w-full rounded-md border border-[var(--color-teal)] px-3 py-2 text-sm font-medium text-[var(--color-teal)] hover:bg-[var(--color-surface-raised)]">
+            <button className="min-h-11 w-full rounded-md bg-[var(--color-teal)] px-3 py-2 text-sm font-medium text-[var(--color-background)]">
               Mark applied
             </button>
           </form>

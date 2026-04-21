@@ -119,7 +119,7 @@ export function AppShell({
               {showFeedbackAction ? (
                 <Link
                   href={feedbackHref}
-                  className="hexis-button-secondary hidden px-2.5 py-1.5 text-xs sm:inline-flex sm:items-center"
+                  className="hidden min-h-10 rounded-md border bg-[var(--color-surface)] px-2.5 py-1.5 text-xs text-[var(--color-foreground)] sm:inline-flex sm:items-center"
                 >
                   Feedback
                 </Link>
@@ -133,7 +133,12 @@ export function AppShell({
 
       <nav
         className="fixed inset-x-0 bottom-0 z-20 border-t px-2 py-2 backdrop-blur lg:hidden"
-        style={{ background: "color-mix(in oklab, var(--color-surface) 92%, transparent)" }}
+        style={{
+          background: "color-mix(in oklab, var(--color-surface) 92%, transparent)",
+          paddingBottom: "max(0.5rem, env(safe-area-inset-bottom))",
+          paddingLeft: "max(0.5rem, env(safe-area-inset-left))",
+          paddingRight: "max(0.5rem, env(safe-area-inset-right))",
+        }}
       >
         <ul className="grid grid-cols-5 gap-1">
           {MOBILE_NAV_ITEMS.map((item) => {

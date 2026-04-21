@@ -50,6 +50,9 @@ async function DashboardPage({
   const recommendedLogHref = onboardingContext
     ? `/log?source=dashboard_goal&goal=${onboardingContext.cultivationGoal.value}`
     : "/log";
+  const compactSinceLastVisitText = retentionView.sinceLastVisit.isReturningUser
+    ? `Since last visit · ${formatCompactDateTime(retentionView.sinceLastVisit.sinceAt)}`
+    : "First visit snapshot";
   await trackProductEventSafely({
     eventName: PRODUCT_EVENT_NAME.RETURN_SUMMARY_VIEWED,
     userId: user.id,
@@ -107,7 +110,7 @@ async function DashboardPage({
           <Link href="/attributes" className="hexis-button-secondary px-3 py-2 text-sm">
             Attributes
           </Link>
-          <Link href={recommendedLogHref} className="min-h-11 rounded-md bg-[var(--color-foreground)] px-3 py-2 text-sm text-[var(--color-background)]">
+          <Link href={recommendedLogHref} className="min-h-11 rounded-md bg-[var(--color-teal)] px-3 py-2 text-sm font-medium text-[var(--color-background)]">
             Log evidence
           </Link>
         </div>
@@ -192,11 +195,7 @@ async function DashboardPage({
         <div className="flex flex-wrap items-end justify-between gap-2">
           <div>
             <p className="hexis-eyebrow">Since your last visit</p>
-            <p className="mt-1 text-sm text-[var(--color-muted)]">
-              {retentionView.sinceLastVisit.isReturningUser
-                ? `Changes since ${retentionView.sinceLastVisit.sinceAt.toLocaleString()}.`
-                : "No prior dashboard visit yet. This reflects your recent baseline."}
-            </p>
+            <p className="mt-1 text-sm text-[var(--color-muted)]">{compactSinceLastVisitText}</p>
           </div>
           <form action={runRetentionAction}>
             <input type="hidden" name="kind" value="WEEKLY_REVIEW_CTA" />
@@ -229,7 +228,7 @@ async function DashboardPage({
             ? `${retentionView.sinceLastVisit.needsAttentionCount} attribute(s) need attention.`
             : "No critical drift currently."}
         </p>
-        <p className="mt-2 text-sm text-[var(--color-muted)]">
+        <p className="mt-2 hidden text-sm text-[var(--color-muted)] sm:block">
           {retentionView.sinceLastVisit.interpretation}
         </p>
         {retentionView.suggestedActions.length > 0 ? (
@@ -394,3 +393,10 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 export { DashboardPage as default };
+
+function formatCompactDateTime(value: Date): string {
+  return `${value.toLocaleDateString()} ${value.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  })}`;
+}
