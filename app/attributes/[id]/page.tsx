@@ -99,7 +99,7 @@ async function AttributeDetailPage({
         </Link>
       }
     >
-      <Link href="/attributes" className="inline-flex rounded-md border px-3 py-1.5 text-sm text-[var(--color-muted)]">← All attributes</Link>
+      <Link href="/attributes" className="hexis-button-secondary px-3 py-1.5 text-sm">← All attributes</Link>
 
       <section className="hexis-card mt-5 p-5 sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
@@ -162,7 +162,7 @@ async function AttributeDetailPage({
             </p>
             <Link
               href="/log"
-              className="mt-3 inline-flex min-h-10 items-center rounded-md border px-3 py-2 text-xs text-[var(--color-muted)] hover:text-[var(--color-foreground)]"
+              className="hexis-button-secondary mt-3 px-3 py-2 text-xs"
             >
               Log evidence
             </Link>
@@ -207,13 +207,13 @@ async function AttributeDetailPage({
         <div className="mt-3 flex flex-wrap gap-2">
           <Link
             href="/history"
-            className="inline-flex min-h-10 items-center rounded-md border px-3 py-2 text-xs text-[var(--color-muted)] hover:text-[var(--color-foreground)]"
+            className="hexis-button-secondary px-3 py-2 text-xs"
           >
             Open full history
           </Link>
           <Link
             href="/log"
-            className="inline-flex min-h-10 items-center rounded-md border px-3 py-2 text-xs text-[var(--color-muted)] hover:text-[var(--color-foreground)]"
+            className="hexis-button-secondary px-3 py-2 text-xs"
           >
             Log evidence
           </Link>

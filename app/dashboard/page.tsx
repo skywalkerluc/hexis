@@ -100,10 +100,13 @@ async function DashboardPage({
       actions={
         <div className="flex flex-wrap items-center justify-end gap-2">
           <form action={syncCultivationStateAction} className="hidden sm:block">
-            <button className="min-h-11 rounded-md border px-3 py-2 text-sm text-[var(--color-muted)] hover:text-[var(--color-foreground)]">
+            <button className="hexis-button-secondary px-3 py-2 text-sm">
               Sync state
             </button>
           </form>
+          <Link href="/attributes" className="hexis-button-secondary px-3 py-2 text-sm">
+            Attributes
+          </Link>
           <Link href={recommendedLogHref} className="min-h-11 rounded-md bg-[var(--color-foreground)] px-3 py-2 text-sm text-[var(--color-background)]">
             Log evidence
           </Link>
@@ -131,7 +134,7 @@ async function DashboardPage({
             >
               Log first meaningful evidence
             </Link>
-            <Link href="/attributes" className="min-h-11 rounded-md border px-4 py-2 text-sm text-[var(--color-muted)]">
+            <Link href="/attributes" className="hexis-button-secondary px-4 py-2 text-sm">
               Review attribute model
             </Link>
           </div>
@@ -199,7 +202,7 @@ async function DashboardPage({
             <input type="hidden" name="kind" value="WEEKLY_REVIEW_CTA" />
             <input type="hidden" name="actionKey" value="open_weekly_review" />
             <input type="hidden" name="path" value="/weekly-review" />
-            <button className="min-h-10 rounded-md border px-3 py-2 text-xs text-[var(--color-muted)] hover:text-[var(--color-foreground)]">
+            <button className="hexis-button-secondary px-3 py-2 text-xs">
               Open weekly review
             </button>
           </form>
@@ -239,7 +242,7 @@ async function DashboardPage({
                   <input type="hidden" name="kind" value="SUGGESTED_ACTION" />
                   <input type="hidden" name="actionKey" value={action.key} />
                   <input type="hidden" name="path" value={action.href} />
-                  <button className="min-h-10 rounded-md border px-3 py-1.5 text-xs text-[var(--color-muted)] hover:text-[var(--color-foreground)]">
+                  <button className="hexis-button-secondary px-3 py-1.5 text-xs">
                     Open
                   </button>
                 </form>
@@ -301,7 +304,7 @@ async function DashboardPage({
               <p className="hexis-eyebrow">Snapshot</p>
               <h2 className="text-xl font-semibold">Current state</h2>
             </div>
-            <Link href="/attributes" className="text-sm text-[var(--color-muted)]">View all</Link>
+            <Link href="/attributes" className="hexis-button-secondary px-3 py-1.5 text-xs">Open attributes</Link>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             {snapshotAttributes.map((attribute) => (

@@ -29,7 +29,7 @@ export default function GlobalError({
           </button>
           <Link
             href="/feedback?from=/error"
-            className="min-h-11 rounded-md border px-4 py-2 text-sm text-[var(--color-muted)] hover:text-[var(--color-foreground)]"
+            className="hexis-button-secondary px-4 py-2 text-sm"
           >
             Send feedback
           </Link>

@@ -89,7 +89,7 @@ async function WeeklyReviewPage() {
               <input type="hidden" name="kind" value="SUGGESTED_ACTION" />
               <input type="hidden" name="actionKey" value={primarySuggestedAction.key} />
               <input type="hidden" name="path" value={primarySuggestedAction.href} />
-              <button className="min-h-11 rounded-md border px-3 py-2 text-sm text-[var(--color-muted)] hover:text-[var(--color-foreground)]">
+              <button className="hexis-button-secondary px-3 py-2 text-sm">
                 Open
               </button>
             </form>
@@ -189,7 +189,7 @@ async function WeeklyReviewPage() {
             </select>
           </label>
           <div className="lg:col-span-2">
-            <button className="min-h-11 rounded-md border px-4 py-2 text-sm text-[var(--color-muted)] hover:text-[var(--color-foreground)]">
+            <button className="hexis-button-secondary px-4 py-2 text-sm">
               Save weekly focus
             </button>
           </div>

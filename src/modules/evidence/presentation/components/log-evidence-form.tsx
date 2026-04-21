@@ -465,7 +465,7 @@ export function LogEvidenceForm({
             disabled={selectedAttributes.length === 0 || isPending}
             className="min-h-11 w-full rounded-md bg-[var(--color-foreground)] px-4 py-3 text-sm font-medium text-[var(--color-background)] disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {isPending ? "Recording..." : "Record evidence"}
+            {isPending ? "Saving..." : "Save log"}
           </button>
         </div>
       </section>
@@ -493,9 +493,9 @@ export function LogEvidenceForm({
           </p>
           <button
             disabled={selectedAttributes.length === 0 || isPending}
-            className="mt-5 min-h-11 w-full rounded-md bg-[var(--color-foreground)] px-4 py-3 text-sm font-medium text-[var(--color-background)] disabled:cursor-not-allowed disabled:opacity-40"
+            className="mt-5 hidden min-h-11 w-full rounded-md bg-[var(--color-foreground)] px-4 py-3 text-sm font-medium text-[var(--color-background)] disabled:cursor-not-allowed disabled:opacity-40 lg:block"
           >
-            {isPending ? "Recording..." : "Record evidence"}
+            {isPending ? "Saving..." : "Save log"}
           </button>
         </div>
       </aside>

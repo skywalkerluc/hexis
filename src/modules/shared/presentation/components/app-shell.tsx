@@ -12,9 +12,9 @@ const NAV_ITEMS: readonly { href: string; label: string }[] = [
 
 const MOBILE_NAV_ITEMS: readonly { href: string; label: string }[] = [
   { href: "/dashboard", label: "Home" },
-  { href: "/attributes", label: "Attributes" },
   { href: "/log", label: "Log" },
   { href: "/weekly-review", label: "Review" },
+  { href: "/history", label: "History" },
   { href: "/settings", label: "Account" },
 ] as const;
 
