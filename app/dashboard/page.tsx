@@ -2,6 +2,8 @@ import Link from "next/link";
 import { AppShell } from "@/modules/shared/presentation/components/app-shell";
 import { AttributeScale } from "@/modules/shared/presentation/components/attribute-scale";
 import { StatusBadge } from "@/modules/shared/presentation/components/status-badge";
+import { XpBar } from "@/modules/shared/presentation/components/xp-bar";
+import { computeLevel } from "@/modules/shared/application/level";
 import { requireOnboardedUser } from "@/shared/auth/route-guards";
 import { readDashboard } from "@/modules/attributes/application/read-dashboard.query";
 import { syncCultivationStateAction } from "@/modules/decay/presentation/sync.actions";
@@ -20,39 +22,20 @@ async function DashboardPage({
 }) {
   const user = await requireOnboardedUser();
   const emptySearchParams: Record<string, string | string[] | undefined> = {};
-  const [dashboard, onboardingContext, retentionView, userLoop, resolvedSearchParams] = await Promise.all([
-    readDashboard(user.id),
-    readUserOnboardingContext(user.id),
-    readRetentionView(user.id, new Date()),
-    readUserLoopView(user.id),
-    searchParams ?? Promise.resolve(emptySearchParams),
-  ]);
-  const activationParam = resolvedSearchParams.activation;
-  const showActivationPanel = activationParam === "1" && dashboard.eventCount < 2;
-  const showInitialBaselinePanel = dashboard.eventCount === 0;
+  const [dashboard, onboardingContext, retentionView, userLoop, resolvedSearchParams] =
+    await Promise.all([
+      readDashboard(user.id),
+      readUserOnboardingContext(user.id),
+      readRetentionView(user.id, new Date()),
+      readUserLoopView(user.id),
+      searchParams ?? Promise.resolve(emptySearchParams),
+    ]);
+
   await trackProductEventSafely({
     eventName: PRODUCT_EVENT_NAME.DASHBOARD_VIEWED,
     userId: user.id,
-    properties: {
-      source: "app",
-    },
+    properties: { source: "app" },
   });
-  const atRiskOrDecaying = dashboard.attributes
-    .filter((attribute) => attribute.status === "AT_RISK" || attribute.status === "DECAYING")
-    .slice(0, 4);
-  const strongestMomentum = dashboard.attributes
-    .filter((attribute) => attribute.status === "IMPROVING")
-    .slice(0, 4);
-  const primaryRecommendation = dashboard.recommendations[0];
-  const secondaryRecommendations = dashboard.recommendations.slice(1);
-  const primaryAttentionAttribute = atRiskOrDecaying[0];
-  const snapshotAttributes = dashboard.attributes.slice(0, 4);
-  const recommendedLogHref = onboardingContext
-    ? `/log?source=dashboard_goal&goal=${onboardingContext.cultivationGoal.value}`
-    : "/log";
-  const compactSinceLastVisitText = retentionView.sinceLastVisit.isReturningUser
-    ? `Since last visit · ${formatCompactDateTime(retentionView.sinceLastVisit.sinceAt)}`
-    : "First visit snapshot";
   await trackProductEventSafely({
     eventName: PRODUCT_EVENT_NAME.RETURN_SUMMARY_VIEWED,
     userId: user.id,
@@ -63,14 +46,27 @@ async function DashboardPage({
       needsAttentionCount: retentionView.sinceLastVisit.needsAttentionCount,
     },
   });
+
+  const primaryRecommendation = dashboard.recommendations[0];
+  const secondaryRecommendations = dashboard.recommendations.slice(1);
+  const atRiskOrDecaying = dashboard.attributes
+    .filter((a) => a.status === "AT_RISK" || a.status === "DECAYING")
+    .slice(0, 4);
+  const strongestMomentum = dashboard.attributes
+    .filter((a) => a.status === "IMPROVING")
+    .slice(0, 4);
+  const snapshotAttributes = dashboard.attributes.slice(0, 4);
+  const { level, currentXp, maxXp } = computeLevel(dashboard.composite);
+
+  const recommendedLogHref = onboardingContext
+    ? `/log?source=dashboard_goal&goal=${onboardingContext.cultivationGoal.value}`
+    : "/log";
+
   if (primaryRecommendation) {
     await trackProductEventSafely({
       eventName: PRODUCT_EVENT_NAME.RECOMMENDATION_RATIONALE_VIEWED,
       userId: user.id,
-      properties: {
-        recommendationId: primaryRecommendation.id,
-        surface: "dashboard",
-      },
+      properties: { recommendationId: primaryRecommendation.id, surface: "dashboard" },
     });
     if (primaryRecommendation.influencedByTemplateKey === userLoop.template.key) {
       await trackProductEventSafely({
@@ -83,209 +79,139 @@ async function DashboardPage({
       });
     }
   }
-  if (showActivationPanel && primaryRecommendation && onboardingContext) {
-    await trackProductEventSafely({
-      eventName: PRODUCT_EVENT_NAME.GOAL_AWARE_RECOMMENDATION_SHOWN,
-      userId: user.id,
-      properties: {
-        recommendationId: primaryRecommendation.id,
-        cultivationGoal: onboardingContext.cultivationGoal.value,
-      },
-    });
-  }
+
+  const activationParam = resolvedSearchParams.activation;
+  const showActivationPanel = activationParam === "1" && dashboard.eventCount < 2;
 
   return (
     <AppShell
-      title={`Good practice, ${user.profile?.displayName ?? "User"}`}
-      eyebrow="Today · control room"
+      title={user.profile?.displayName ?? "Personagem"}
+      eyebrow="Painel"
       currentPath="/dashboard"
       displayName={user.profile?.displayName ?? user.email}
       actions={
         <div className="flex flex-wrap items-center justify-end gap-2">
           <form action={syncCultivationStateAction} className="hidden sm:block">
             <button className="hexis-button-secondary px-3 py-2 text-sm">
-              Sync state
+              Sincronizar
             </button>
           </form>
           <Link href="/attributes" className="hexis-button-secondary px-3 py-2 text-sm">
-            Attributes
+            Habilidades
           </Link>
-          <Link href={recommendedLogHref} className="min-h-11 rounded-md bg-[var(--color-teal)] px-3 py-2 text-sm font-medium text-[var(--color-background)]">
-            Log evidence
+          <Link
+            href={recommendedLogHref}
+            className="min-h-11 rounded-md px-4 py-2 text-sm font-semibold"
+            style={{ background: "var(--color-gold)", color: "var(--color-gold-foreground)" }}
+          >
+            Registrar ação
           </Link>
         </div>
       }
     >
+      {/* XP Bar */}
+      <section className="hexis-card mb-6 p-4 sm:p-5">
+        <XpBar level={level} currentXp={currentXp} maxXp={maxXp} />
+        <div className="mt-3 grid grid-cols-3 gap-3">
+          <Stat label="Em Alta" value={`${dashboard.improvingCount}`} />
+          <Stat label="Precisam de atenção" value={`${dashboard.needsCareCount}`} />
+          <Stat label="Pontuação" value={`${dashboard.composite.toFixed(1)}`} />
+        </div>
+      </section>
+
+      {/* Ativação */}
       {showActivationPanel && onboardingContext ? (
         <section className="hexis-card mb-6 p-5 sm:p-6">
-          <p className="hexis-eyebrow">Activation</p>
+          <p className="hexis-eyebrow">Primeiros passos</p>
           <h2 className="mt-2 text-xl font-semibold">
-            Start with {onboardingContext.cultivationGoal.label}
+            Comece com {onboardingContext.cultivationGoal.label}
           </h2>
-          <p className="mt-2 max-w-3xl text-sm text-[var(--color-muted)]">
-            Hexis tracks how your attributes respond to evidence over time. Current moves fastest,
-            base shifts slower, potential changes slowest. Maintenance protects trend; neglect can
-            trigger decay.
-          </p>
-          <p className="mt-2 text-sm text-[var(--color-muted)]">
-            First action: log one concrete block aligned with {onboardingContext.cultivationGoal.label.toLowerCase()}.
+          <p className="mt-2 max-w-3xl text-sm" style={{ color: "var(--color-muted)" }}>
+            O Hexis acompanha como seus atributos respondem a ações ao longo do tempo.
+            Registre sua primeira ação concreta alinhada com {onboardingContext.cultivationGoal.label.toLowerCase()}.
           </p>
           <div className="mt-4 flex flex-wrap items-center gap-2">
             <Link
               href={`/log?source=onboarding_activation&goal=${onboardingContext.cultivationGoal.value}`}
-              className="min-h-11 rounded-md bg-[var(--color-foreground)] px-4 py-2 text-sm text-[var(--color-background)]"
+              className="min-h-11 rounded-md px-4 py-2 text-sm font-semibold"
+              style={{ background: "var(--color-gold)", color: "var(--color-gold-foreground)" }}
             >
-              Log first meaningful evidence
+              Registrar primeira ação
             </Link>
             <Link href="/attributes" className="hexis-button-secondary px-4 py-2 text-sm">
-              Review attribute model
+              Ver habilidades
             </Link>
           </div>
         </section>
       ) : null}
 
-      {showInitialBaselinePanel ? (
-        <section className="hexis-card mb-6 p-4 sm:p-5">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="hexis-eyebrow">Initial calibration</p>
-            <span className="rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wide text-[var(--color-muted)]">
-              Baseline
-            </span>
-          </div>
-          <p className="mt-2 text-sm text-[var(--color-muted)]">
-            This is your calibrated starting point, not a performance claim. First logs personalize
-            it quickly.
-          </p>
-        </section>
-      ) : null}
-
+      {/* Missão sugerida */}
       <section className="hexis-card mb-6 p-5 sm:p-6">
-        <h2 className="text-base font-semibold">What to do next</h2>
+        <h2 className="text-base font-semibold">Missão sugerida</h2>
         {primaryRecommendation ? (
           <ul className="mt-3">
             <RecommendationItem recommendation={primaryRecommendation} allowActions />
           </ul>
-        ) : primaryAttentionAttribute ? (
-          <div className="mt-3 rounded-md border bg-[var(--color-background)] p-4">
-            <p className="text-sm font-medium">{primaryAttentionAttribute.name} needs attention.</p>
-            <p className="mt-1 text-xs text-[var(--color-muted)]">
-              Current {primaryAttentionAttribute.currentValue.toFixed(1)} is below stable base {primaryAttentionAttribute.baseValue.toFixed(1)}.
-            </p>
-            <Link
-              href={`/attributes/${primaryAttentionAttribute.slug}`}
-              className="mt-3 inline-flex min-h-10 items-center rounded-md border px-3 py-1.5 text-xs text-[var(--color-gold)]"
-            >
-              Open attribute detail
-            </Link>
-          </div>
         ) : (
-          <p className="mt-3 text-sm text-[var(--color-muted)]">
-            No urgent drift right now. Keep momentum by logging your next meaningful block.
+          <p className="mt-3 text-sm" style={{ color: "var(--color-muted)" }}>
+            Nenhuma missão crítica agora. Continue registrando ações para manter o momentum.
           </p>
         )}
-
-        <div className="mt-4 hidden gap-4 sm:grid sm:grid-cols-3">
-          <Stat label="Composite" value={`${dashboard.composite.toFixed(1)} / 20`} />
-          <Stat label="Improving" value={`${dashboard.improvingCount} attributes`} />
-          <Stat label="Needs care" value={`${dashboard.needsCareCount} attributes`} />
-        </div>
       </section>
 
-      <section className="hexis-card mb-6 p-5 sm:p-6">
-        <div className="flex flex-wrap items-end justify-between gap-2">
-          <div>
-            <p className="hexis-eyebrow">Since your last visit</p>
-            <p className="mt-1 text-sm text-[var(--color-muted)]">{compactSinceLastVisitText}</p>
-          </div>
-          <form action={runRetentionAction}>
-            <input type="hidden" name="kind" value="WEEKLY_REVIEW_CTA" />
-            <input type="hidden" name="actionKey" value="open_weekly_review" />
-            <input type="hidden" name="path" value="/weekly-review" />
-            <button className="hexis-button-secondary px-3 py-2 text-xs">
-              Open weekly review
-            </button>
-          </form>
-        </div>
-        <div className="mt-3 grid gap-3 sm:grid-cols-3">
-          <Stat label="Improved" value={`${retentionView.sinceLastVisit.improvedCount}`} />
-          <Stat label="Declined" value={`${retentionView.sinceLastVisit.declinedCount}`} />
-          <Stat label="Stable" value={`${retentionView.sinceLastVisit.stableCount}`} />
-        </div>
-        <div className="mt-3 rounded-md border bg-[var(--color-background)] p-3">
-          <p className="hexis-eyebrow">Current loop</p>
-          <p className="mt-1 text-sm">
-            {userLoop.template.label}
-            {userLoop.weeklyFocus
-              ? ` · Weekly focus: ${userLoop.weeklyFocus.name}`
-              : " · Weekly focus not set"}
-          </p>
-          <p className="mt-1 text-xs text-[var(--color-muted)]">{userLoop.template.weeklyPrompt}</p>
-        </div>
-        <p className="mt-3 text-sm text-[var(--color-muted)]">
-          {retentionView.sinceLastVisit.evidenceLoggedCount} evidence log(s),{" "}
-          {retentionView.sinceLastVisit.newRecommendationCount} recommendation update(s).{" "}
-          {retentionView.sinceLastVisit.needsAttentionCount > 0
-            ? `${retentionView.sinceLastVisit.needsAttentionCount} attribute(s) need attention.`
-            : "No critical drift currently."}
-        </p>
-        <p className="mt-2 hidden text-sm text-[var(--color-muted)] sm:block">
-          {retentionView.sinceLastVisit.interpretation}
-        </p>
-        {retentionView.suggestedActions.length > 0 ? (
-          <div className="mt-4 hidden gap-2 sm:grid lg:grid-cols-2">
-            {retentionView.suggestedActions.map((action) => (
-              <div key={action.key} className="rounded-md border bg-[var(--color-background)] p-3">
-                <p className="text-sm font-medium">{action.title}</p>
-                <p className="mt-1 text-xs text-[var(--color-muted)]">{action.description}</p>
-                <form action={runRetentionAction} className="mt-2">
-                  <input type="hidden" name="kind" value="SUGGESTED_ACTION" />
-                  <input type="hidden" name="actionKey" value={action.key} />
-                  <input type="hidden" name="path" value={action.href} />
-                  <button className="hexis-button-secondary px-3 py-1.5 text-xs">
-                    Open
-                  </button>
-                </form>
-              </div>
-            ))}
-          </div>
-        ) : null}
-      </section>
-
-      <section className="mt-6 grid gap-4 lg:grid-cols-2">
+      {/* Precisa de atenção + Em Alta */}
+      <section className="grid gap-4 lg:grid-cols-2">
         <div className="hexis-card p-4 sm:p-5">
-          <p className="hexis-eyebrow">Needs attention</p>
+          <p className="hexis-eyebrow">Precisa de atenção</p>
           <ul className="mt-3 space-y-2">
             {atRiskOrDecaying.length === 0 ? (
-              <li className="text-sm text-[var(--color-muted)]">No critical drift detected right now.</li>
+              <li className="text-sm" style={{ color: "var(--color-muted)" }}>
+                Nenhum declínio crítico detectado.
+              </li>
             ) : (
               atRiskOrDecaying.map((attribute) => (
-                <li key={attribute.userAttributeId} className="flex items-center justify-between gap-3 rounded-md border bg-[var(--color-background)] px-3 py-2">
+                <li
+                  key={attribute.userAttributeId}
+                  className="flex items-center justify-between gap-3 rounded-md border px-3 py-2"
+                  style={{ background: "var(--color-background)" }}
+                >
                   <div>
                     <p className="text-sm font-medium">{attribute.name}</p>
-                    <p className="text-xs text-[var(--color-muted)]">
-                      Current {attribute.currentValue.toFixed(1)} · Base {attribute.baseValue.toFixed(1)}
+                    <p className="text-xs" style={{ color: "var(--color-muted)" }}>
+                      Atual {attribute.currentValue.toFixed(1)} · Base {attribute.baseValue.toFixed(1)}
                     </p>
                   </div>
-                  <Link href={`/attributes/${attribute.slug}`} className="flex self-stretch items-center pl-4 text-xs text-[var(--color-gold)]">
-                    Review
+                  <Link
+                    href={`/attributes/${attribute.slug}`}
+                    className="flex self-stretch items-center pl-4 text-xs"
+                    style={{ color: "var(--color-gold)" }}
+                  >
+                    Ver
                   </Link>
                 </li>
               ))
             )}
           </ul>
         </div>
+
         <div className="hexis-card p-4 sm:p-5">
-          <p className="hexis-eyebrow">Momentum</p>
+          <p className="hexis-eyebrow">Em Alta</p>
           <ul className="mt-3 space-y-2">
             {strongestMomentum.length === 0 ? (
-              <li className="text-sm text-[var(--color-muted)]">No improving attributes yet. Log a focused session to build trend.</li>
+              <li className="text-sm" style={{ color: "var(--color-muted)" }}>
+                Nenhum atributo em alta ainda. Registre uma ação focada para construir tendência.
+              </li>
             ) : (
               strongestMomentum.map((attribute) => (
-                <li key={attribute.userAttributeId} className="flex items-center justify-between gap-3 rounded-md border bg-[var(--color-background)] px-3 py-2">
+                <li
+                  key={attribute.userAttributeId}
+                  className="flex items-center justify-between gap-3 rounded-md border px-3 py-2"
+                  style={{ background: "var(--color-background)" }}
+                >
                   <div>
                     <p className="text-sm font-medium">{attribute.name}</p>
-                    <p className="text-xs text-[var(--color-muted)]">
-                      {attribute.currentValue.toFixed(1)} current · {attribute.potentialValue.toFixed(1)} potential
+                    <p className="text-xs" style={{ color: "var(--color-muted)" }}>
+                      {attribute.currentValue.toFixed(1)} atual · {attribute.potentialValue.toFixed(1)} potencial
                     </p>
                   </div>
                   <StatusBadge status={attribute.status} />
@@ -296,96 +222,143 @@ async function DashboardPage({
         </div>
       </section>
 
-      <div className="mt-6 grid gap-6 xl:grid-cols-12">
-        <section className="xl:col-span-8">
-          <div className="mb-3 flex items-end justify-between">
-            <div>
-              <p className="hexis-eyebrow">Snapshot</p>
-              <h2 className="text-xl font-semibold">Current state</h2>
-            </div>
-            <Link href="/attributes" className="hexis-button-secondary px-3 py-1.5 text-xs">Open attributes</Link>
+      {/* Snapshot de habilidades */}
+      <section className="mt-6">
+        <div className="mb-3 flex items-end justify-between">
+          <div>
+            <p className="hexis-eyebrow">Snapshot</p>
+            <h2 className="text-xl font-semibold">Suas habilidades</h2>
           </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            {snapshotAttributes.map((attribute) => (
-              <Link key={attribute.slug} href={`/attributes/${attribute.slug}`} className="hexis-card block p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-muted)]">{attribute.shortCode}</p>
-                    <h3 className="mt-1 text-lg font-semibold">{attribute.name}</h3>
-                  </div>
-                  <StatusBadge status={attribute.status} />
+          <Link href="/attributes" className="hexis-button-secondary px-3 py-1.5 text-xs">
+            Ver todas
+          </Link>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          {snapshotAttributes.map((attribute) => (
+            <Link
+              key={attribute.slug}
+              href={`/attributes/${attribute.slug}`}
+              className="hexis-card block p-4"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.18em]" style={{ color: "var(--color-muted)" }}>
+                    {attribute.shortCode}
+                  </p>
+                  <h3 className="mt-1 text-lg font-semibold">{attribute.name}</h3>
                 </div>
-                <div className="mt-3 flex items-end justify-between">
-                  <p className="text-3xl font-semibold">{attribute.currentValue.toFixed(1)}</p>
-                  <p className="text-xs text-[var(--color-muted)]">/ 20</p>
-                </div>
-                <div className="mt-3">
-                  <AttributeScale
-                    currentValue={attribute.currentValue}
-                    baseValue={attribute.baseValue}
-                    potentialValue={attribute.potentialValue}
-                  />
-                </div>
-                <p className="mt-2 text-xs text-[var(--color-muted)]">
-                  Gap to base: {(attribute.currentValue - attribute.baseValue).toFixed(2)}
+                <StatusBadge status={attribute.status} />
+              </div>
+              <p className="mt-3 text-3xl font-semibold">{attribute.currentValue.toFixed(1)}</p>
+              <div className="mt-3">
+                <AttributeScale
+                  currentValue={attribute.currentValue}
+                  baseValue={attribute.baseValue}
+                  potentialValue={attribute.potentialValue}
+                />
+              </div>
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      {/* Desde a última visita */}
+      <section className="hexis-card mt-6 p-5 sm:p-6">
+        <div className="flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <p className="hexis-eyebrow">Desde a última visita</p>
+            <p className="mt-1 text-sm" style={{ color: "var(--color-muted)" }}>
+              {retentionView.sinceLastVisit.isReturningUser
+                ? `Desde ${formatCompactDateTime(retentionView.sinceLastVisit.sinceAt)}`
+                : "Primeira visita"}
+            </p>
+          </div>
+          <form action={runRetentionAction}>
+            <input type="hidden" name="kind" value="WEEKLY_REVIEW_CTA" />
+            <input type="hidden" name="actionKey" value="open_weekly_review" />
+            <input type="hidden" name="path" value="/weekly-review" />
+            <button className="hexis-button-secondary px-3 py-2 text-xs">
+              Revisão semanal
+            </button>
+          </form>
+        </div>
+        <div className="mt-3 grid gap-3 sm:grid-cols-3">
+          <Stat label="Melhorou" value={`${retentionView.sinceLastVisit.improvedCount}`} />
+          <Stat label="Caiu" value={`${retentionView.sinceLastVisit.declinedCount}`} />
+          <Stat label="Estável" value={`${retentionView.sinceLastVisit.stableCount}`} />
+        </div>
+        <div className="mt-3 rounded-md border p-3" style={{ background: "var(--color-background)" }}>
+          <p className="hexis-eyebrow">Rotina atual</p>
+          <p className="mt-1 text-sm">
+            {userLoop.template.label}
+            {userLoop.weeklyFocus
+              ? ` · Foco semanal: ${userLoop.weeklyFocus.name}`
+              : " · Foco semanal não definido"}
+          </p>
+          <p className="mt-1 text-xs" style={{ color: "var(--color-muted)" }}>
+            {userLoop.template.weeklyPrompt}
+          </p>
+        </div>
+        <p className="mt-3 text-sm" style={{ color: "var(--color-muted)" }}>
+          {retentionView.sinceLastVisit.evidenceLoggedCount} ação(ões) registrada(s),{" "}
+          {retentionView.sinceLastVisit.newRecommendationCount} atualização(ões) de missão.{" "}
+          {retentionView.sinceLastVisit.needsAttentionCount > 0
+            ? `${retentionView.sinceLastVisit.needsAttentionCount} atributo(s) precisam de atenção.`
+            : "Nenhum declínio crítico no momento."}
+        </p>
+      </section>
+
+      {/* Ações recentes */}
+      <aside className="hexis-card mt-6 p-4 sm:p-5">
+        <div className="flex items-center justify-between">
+          <p className="hexis-eyebrow">Ações recentes</p>
+          <Link href="/history" className="text-xs" style={{ color: "var(--color-muted)" }}>
+            Ver histórico
+          </Link>
+        </div>
+        {dashboard.recentEvents.length === 0 ? (
+          <p className="mt-3 text-sm" style={{ color: "var(--color-muted)" }}>
+            Nenhuma ação ainda. Registre a primeira para começar a evoluir.
+          </p>
+        ) : (
+          <ul className="mt-3 space-y-3">
+            {dashboard.recentEvents.map((event) => (
+              <li key={event.id} className="border-b pb-3 last:border-b-0 last:pb-0">
+                <p className="text-sm">{event.title}</p>
+                <p className="mt-1 text-[11px] uppercase tracking-wide" style={{ color: "var(--color-muted)" }}>
+                  {event.eventType} · {event.intensity}
                 </p>
-              </Link>
+                <p className="mt-1 text-xs" style={{ color: "var(--color-muted)" }}>
+                  {event.occurredAt.toLocaleString("pt-BR")} · {event.impacts.length} atributo(s)
+                </p>
+              </li>
             ))}
-          </div>
-        </section>
+          </ul>
+        )}
+      </aside>
 
-        <aside className="space-y-6 xl:col-span-4">
-          <div className="hexis-card p-4 sm:p-5">
-            <div className="flex items-center justify-between">
-              <p className="hexis-eyebrow">Recent evidence</p>
-              <Link href="/history" className="text-xs text-[var(--color-muted)] hover:text-[var(--color-foreground)]">View history</Link>
-            </div>
-            {dashboard.recentEvents.length === 0 ? (
-              <p className="mt-3 text-sm text-[var(--color-muted)]">
-                No recent evidence yet. Log one meaningful session to anchor your trend.
-              </p>
-            ) : (
-              <ul className="mt-3 space-y-3">
-                {dashboard.recentEvents.map((event) => (
-                  <li key={event.id} className="border-b pb-3 last:border-b-0 last:pb-0">
-                    <p className="text-sm">{event.title}</p>
-                    <p className="mt-1 text-[11px] uppercase tracking-wide text-[var(--color-muted)]">
-                      {event.eventType} · {event.intensity}
-                    </p>
-                    <p className="mt-1 text-xs text-[var(--color-muted)]">
-                      {event.occurredAt.toLocaleString()} · {event.impacts.length} attribute impact(s)
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </aside>
-      </div>
-
-      <section className="hexis-card mt-6 p-4 sm:p-5">
-        <p className="hexis-eyebrow">Additional recommendations</p>
-        <ul className="mt-3 space-y-3">
-          {secondaryRecommendations.length === 0 ? (
-            <li className="text-sm text-[var(--color-muted)]">No additional active recommendations.</li>
-          ) : (
-            secondaryRecommendations.map((recommendation) => (
+      {/* Outras missões */}
+      {secondaryRecommendations.length > 0 && (
+        <section className="hexis-card mt-6 p-4 sm:p-5">
+          <p className="hexis-eyebrow">Outras missões</p>
+          <ul className="mt-3 space-y-3">
+            {secondaryRecommendations.map((recommendation) => (
               <RecommendationItem
                 key={recommendation.id}
                 recommendation={recommendation}
                 allowActions
               />
-            ))
-          )}
-        </ul>
-      </section>
+            ))}
+          </ul>
+        </section>
+      )}
     </AppShell>
   );
 }
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-md border bg-[var(--color-background)] p-3">
+    <div className="rounded-md border p-3" style={{ background: "var(--color-background)" }}>
       <p className="hexis-eyebrow">{label}</p>
       <p className="mt-1.5 text-xl font-semibold">{value}</p>
     </div>
@@ -395,7 +368,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 export { DashboardPage as default };
 
 function formatCompactDateTime(value: Date): string {
-  return `${value.toLocaleDateString()} ${value.toLocaleTimeString([], {
+  return `${value.toLocaleDateString("pt-BR")} ${value.toLocaleTimeString("pt-BR", {
     hour: "2-digit",
     minute: "2-digit",
   })}`;
