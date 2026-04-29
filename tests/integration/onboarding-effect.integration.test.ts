@@ -45,7 +45,7 @@ describe.sequential("integration: onboarding effect", () => {
     await completeOnboardingUseCase({
       userId,
       templateKey: "deep-work",
-      cultivationGoal: "FOCUS",
+      cultivationGoal: "CONCENTRACAO",
     });
 
     const profile = await prisma.profile.findUnique({ where: { userId } });
@@ -60,7 +60,7 @@ describe.sequential("integration: onboarding effect", () => {
     expect(profile?.onboardingDone).toBe(true);
     expect(onboarding).not.toBeNull();
     expect(onboarding?.templateId).toBeDefined();
-    expect(onboarding?.cultivationGoal).toBe("FOCUS");
+    expect(onboarding?.cultivationGoal).toBe("CONCENTRACAO");
     expect(focus?.onboardingEmphasisWeight?.toNumber()).toBe(1.45);
 
     const systemLogs = await prisma.attributeHistoryLog.count({
@@ -77,7 +77,7 @@ describe.sequential("integration: onboarding effect", () => {
       completeOnboardingUseCase({
         userId,
         templateKey: "embodied-practice",
-        cultivationGoal: "ENERGY",
+        cultivationGoal: "ENERGIA",
       }),
     ).rejects.toThrow("Onboarding already completed.");
 
