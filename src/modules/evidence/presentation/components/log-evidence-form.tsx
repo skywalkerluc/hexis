@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import type { UserAttributeView } from "@/modules/attributes/application/read-attributes.query";
 import { submitEvidenceEventAction } from "@/modules/evidence/presentation/evidence.actions";
