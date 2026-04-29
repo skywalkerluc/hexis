@@ -17,6 +17,10 @@ const RECOMMENDATION_THRESHOLD = 0.2;
 const MAINTENANCE_KIND: RecommendationKind = "MAINTENANCE_BLOCK";
 const WEEKLY_FOCUS_SCORE_BONUS = 0.75;
 
+function recommendationTitle(attributeName: string): string {
+  return `Sustain ${attributeName} this week`;
+}
+
 export type GenerateRecommendationsInput = {
   userId: string;
   now: Date;
@@ -203,7 +207,7 @@ export async function generateRecommendationsForUser(
           userId: input.userId,
           attributeDefinitionId: candidate.attributeDefinitionId,
           kind: MAINTENANCE_KIND,
-          title: `${candidate.attributeName}: maintenance block`,
+          title: recommendationTitle(candidate.attributeName),
           rationale,
           expectedCurrentGain,
           priorityScore: candidate.score,
@@ -270,7 +274,7 @@ export async function generateRecommendationsForUser(
       where: { id: existing.id },
       data: {
         status: "ACTIVE",
-        title: `${candidate.attributeName}: maintenance block`,
+        title: recommendationTitle(candidate.attributeName),
         rationale,
         expectedCurrentGain,
         priorityScore: candidate.score,

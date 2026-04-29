@@ -14,15 +14,15 @@ export type RecommendationRationaleInput = {
 
 function statusSignal(status: string): string {
   if (status === "AT_RISK") {
-    return "This attribute is at risk right now.";
+    return "This area is showing clear risk right now.";
   }
   if (status === "DECAYING") {
-    return "Recent drift suggests this trend can slip further.";
+    return "Recent drift suggests this can slip further without reinforcement.";
   }
   if (status === "IMPROVING") {
-    return "Momentum is positive and can be consolidated.";
+    return "Recent signals are positive, but still need reinforcement.";
   }
-  return "Current trend is stable but still needs reinforcement.";
+  return "This area is stable, but maintenance keeps it reliable.";
 }
 
 export function buildRecommendationRationale(
@@ -31,24 +31,26 @@ export function buildRecommendationRationale(
   const deficit = input.baseValue - input.currentValue;
   const potentialGap = input.potentialValue - input.currentValue;
 
-  const cadenceSignal =
+  const freshnessSignal =
     input.daysSinceEvent >= DAYS_STALE_THRESHOLD
-      ? `${input.daysSinceEvent} day(s) without direct evidence.`
-      : "Recent evidence cadence is light.";
+      ? `No direct log for ${input.daysSinceEvent} day(s).`
+      : "Recent logs are still light.";
 
-  const baselineSignal =
+  const stateSignal =
     deficit > DEFICIT_MEANINGFUL_THRESHOLD
-      ? `Current (${input.currentValue.toFixed(1)}) is below base (${input.baseValue.toFixed(1)}).`
-      : "Current is near base, but reinforcement is still useful.";
+      ? `Current is below your stable baseline.`
+      : "Current is near baseline, so a small reinforcement helps preserve it.";
 
   const opportunitySignal =
     potentialGap > POTENTIAL_GAP_THRESHOLD
-      ? `There is still room below potential (${input.potentialValue.toFixed(1)}).`
-      : "Potential headroom is limited, so precision matters.";
+      ? "There is still room to strengthen this area."
+      : "Progress room is tighter, so consistency matters.";
 
-  const goalSignal = input.goalAligned
-    ? "This is aligned with your declared cultivation goal."
-    : "This supports overall balance across attributes.";
+  const directionSignal = input.goalAligned
+    ? "This is aligned with your current focus."
+    : "This helps keep overall balance.";
 
-  return `${statusSignal(input.status)} ${cadenceSignal} ${baselineSignal} ${opportunitySignal} ${goalSignal}`;
+  const nextStepSignal = `Next step: log one short ${input.attributeName.toLowerCase()}-focused block this week.`;
+
+  return `${statusSignal(input.status)} ${freshnessSignal} ${stateSignal} ${opportunitySignal} ${directionSignal} ${nextStepSignal}`;
 }

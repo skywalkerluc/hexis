@@ -16,24 +16,49 @@ function lifecycleLabel(recommendation: RecommendationView): string {
 
 function lifecycleContext(recommendation: RecommendationView): string {
   if (recommendation.status === "ACTIVE") {
-    return "Ready when you are.";
+    return "Recommended now.";
   }
   if (recommendation.status === "DISMISSED") {
-    return "Dismissed for now. It can return if this area slips again.";
+    return "Skipped for now.";
   }
   if (recommendation.status === "APPLIED") {
-    return "Applied recently. We will recheck before suggesting it again.";
+    return "Done recently.";
   }
-  return "Expired. It only returns if renewed risk appears.";
+  return "No longer a priority now.";
 }
 
-const RATIONALE_PREVIEW_MAX = 96;
+const RATIONALE_PREVIEW_MAX = 112;
 
 function compactRationale(text: string): string {
   if (text.length <= RATIONALE_PREVIEW_MAX) {
     return text;
   }
   return `${text.slice(0, RATIONALE_PREVIEW_MAX).trimEnd()}...`;
+}
+
+function actionTitle(recommendation: RecommendationView): string {
+  return `Sustain ${recommendation.attributeName} this week`;
+}
+
+function whyNowText(recommendation: RecommendationView): string {
+  if (recommendation.status === "APPLIED") {
+    return `${recommendation.attributeName} got recent reinforcement. Keep it stable with a light follow-up.`;
+  }
+  if (recommendation.status === "DISMISSED") {
+    return `${recommendation.attributeName} still shows a weak signal and may slip without reinforcement.`;
+  }
+  if (recommendation.status === "EXPIRED") {
+    return `${recommendation.attributeName} is currently more stable. This is kept for context only.`;
+  }
+  return compactRationale(recommendation.rationale);
+}
+
+function nextStepText(recommendation: RecommendationView): string {
+  return `Next step: log one short ${recommendation.attributeName.toLowerCase()}-focused block this week.`;
+}
+
+function impactText(recommendation: RecommendationView): string {
+  return `Expected short-term lift: +${recommendation.expectedCurrentGain.toFixed(2)} in current score.`;
 }
 
 export function RecommendationItem({
@@ -49,17 +74,16 @@ export function RecommendationItem({
     <li className="rounded-md border border-[var(--color-hairline)] bg-[var(--color-background)] p-3 sm:p-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium leading-snug">{recommendation.title}</p>
-          <p className="mt-1 text-[11px] text-[var(--color-gold)]">
-            {recommendation.attributeName} · +{recommendation.expectedCurrentGain.toFixed(2)} expected current
-          </p>
+          <p className="text-sm font-medium leading-snug">{actionTitle(recommendation)}</p>
         </div>
         <span className="rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wide text-[var(--color-muted)]">
           {lifecycleLabel(recommendation)}
         </span>
       </div>
-      <p className="mt-2 text-xs text-[var(--color-muted)]">{lifecycleContext(recommendation)}</p>
-      <p className="mt-2 text-xs leading-relaxed text-[var(--color-foreground)]">{compactRationale(recommendation.rationale)}</p>
+      <p className="mt-2 text-xs leading-relaxed text-[var(--color-foreground)]">{whyNowText(recommendation)}</p>
+      <p className="mt-1 text-xs text-[var(--color-muted)]">{nextStepText(recommendation)}</p>
+      <p className="mt-1 text-[11px] text-[var(--color-gold)]">{impactText(recommendation)}</p>
+      <p className="mt-1 text-[11px] text-[var(--color-muted)]">{lifecycleContext(recommendation)}</p>
 
       {allowActions && recommendation.status === "ACTIVE" ? (
         <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">

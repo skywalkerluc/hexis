@@ -60,9 +60,9 @@ async function HistoryPage({
       </div>
 
       <section className="hexis-card mt-8 p-5">
-        <p className="hexis-eyebrow">Recommendation lifecycle</p>
+        <p className="hexis-eyebrow">Recommendation history</p>
         <p className="mt-1 text-sm text-[var(--color-muted)]">
-          Active, dismissed, applied and expired guidance with persisted state.
+          Past and current guidance, with status and next best step.
         </p>
         <ul className="mt-4 space-y-3">
           {recommendationTimeline.length === 0 ? (
