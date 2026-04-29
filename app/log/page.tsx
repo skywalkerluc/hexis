@@ -62,22 +62,21 @@ async function LogPage({
 
   return (
     <AppShell
-      title="Log evidence"
-      eyebrow="Evidence"
+      title="Registrar ação"
+      eyebrow="Ação"
       currentPath="/log"
       displayName={user.profile?.displayName ?? user.email}
     >
       {goalGuidance ? (
-        <div className="mb-4 rounded-md border bg-[var(--color-surface)] px-4 py-3">
-          <p className="text-sm font-medium">Suggested start: {goalGuidance.label}</p>
-          <p className="mt-1 text-xs text-[var(--color-muted)]">
-            Record one concrete block aligned with this goal so Hexis can calibrate your next recommendation.
+        <div className="mb-4 rounded-md border px-4 py-3" style={{ background: "var(--color-surface)" }}>
+          <p className="text-sm font-medium">Foco sugerido: {goalGuidance.label}</p>
+          <p className="mt-1 text-xs" style={{ color: "var(--color-muted)" }}>
+            Registre uma ação alinhada a esse objetivo para o Hexis calibrar sua próxima missão.
           </p>
         </div>
       ) : null}
-      <p className="max-w-3xl text-sm text-[var(--color-muted)]">
-        Log concrete evidence of cultivation: what happened, which attributes were affected,
-        and why this event matters.
+      <p className="max-w-3xl text-sm" style={{ color: "var(--color-muted)" }}>
+        Registre o que você fez — treino, leitura, trabalho focado, qualquer coisa que moveu um atributo.
       </p>
       <div className="mt-6">
         <LogEvidenceForm attributes={attributes} goalGuidance={goalGuidance} />

@@ -24,8 +24,8 @@ async function ProfilePage() {
 
   return (
     <AppShell
-      title="Profile"
-      eyebrow="Account"
+      title="Perfil"
+      eyebrow="Conta"
       currentPath="/profile"
       displayName={profile.displayName}
     >
@@ -42,33 +42,41 @@ async function ProfilePage() {
               size={72}
             />
             <div>
-              <p className="hexis-eyebrow">Character sheet</p>
+              <p className="hexis-eyebrow">Ficha de personagem</p>
               <p className="mt-1 text-xl font-semibold">{profile.displayName}</p>
-              <p className="text-sm text-[var(--color-muted)]">{profile.email}</p>
+              <p className="text-sm" style={{ color: "var(--color-muted)" }}>{profile.email}</p>
             </div>
           </div>
 
           <div className="mt-6 grid gap-4 sm:grid-cols-2">
             <label>
-              <span className="text-xs uppercase tracking-wider text-[var(--color-muted)]">Display name</span>
+              <span className="text-xs uppercase tracking-wider" style={{ color: "var(--color-muted)" }}>
+                Nome de exibição
+              </span>
               <input
                 name="displayName"
                 defaultValue={profile.displayName}
-                className="mt-1.5 w-full rounded-md border bg-[var(--color-background)] px-3 py-2 text-sm"
+                className="mt-1.5 w-full rounded-md border px-3 py-2 text-sm"
+                style={{ background: "var(--color-background)" }}
               />
             </label>
             <label>
-              <span className="text-xs uppercase tracking-wider text-[var(--color-muted)]">Timezone</span>
+              <span className="text-xs uppercase tracking-wider" style={{ color: "var(--color-muted)" }}>
+                Fuso horário
+              </span>
               <input
                 name="timezone"
                 defaultValue={profile.timezone}
-                className="mt-1.5 w-full rounded-md border bg-[var(--color-background)] px-3 py-2 text-sm"
+                className="mt-1.5 w-full rounded-md border px-3 py-2 text-sm"
+                style={{ background: "var(--color-background)" }}
               />
             </label>
           </div>
 
           <div className="mt-6">
-            <p className="text-xs uppercase tracking-wider text-[var(--color-muted)]">Avatar option</p>
+            <p className="text-xs uppercase tracking-wider" style={{ color: "var(--color-muted)" }}>
+              Avatar
+            </p>
             <div className="mt-3 flex flex-wrap gap-3">
               {profile.availableAvatars.map((avatar) => (
                 <label key={avatar.id} className="cursor-pointer rounded-full border p-1">
@@ -86,36 +94,28 @@ async function ProfilePage() {
           </div>
 
           <div className="mt-6 flex justify-end">
-            <button className="rounded-md bg-[var(--color-foreground)] px-4 py-2.5 text-sm font-medium text-[var(--color-background)]">
-              Save profile
+            <button
+              className="rounded-md px-4 py-2.5 text-sm font-medium"
+              style={{ background: "var(--color-foreground)", color: "var(--color-background)" }}
+            >
+              Salvar perfil
             </button>
           </div>
         </section>
       </form>
 
       <div className="mt-6 flex flex-wrap items-center gap-3 sm:hidden">
-        <Link
-          href="/settings"
-          className="hexis-button-secondary px-4 py-2 text-sm"
-        >
-          Settings
+        <Link href="/settings" className="hexis-button-secondary px-4 py-2 text-sm">
+          Configurações
         </Link>
-        <Link
-          href="/history"
-          className="hexis-button-secondary px-4 py-2 text-sm"
-        >
-          History
+        <Link href="/history" className="hexis-button-secondary px-4 py-2 text-sm">
+          Histórico
         </Link>
         <form action={logoutAction}>
-          <button className="hexis-button-secondary px-4 py-2 text-sm">
-            Sign out
-          </button>
+          <button className="hexis-button-secondary px-4 py-2 text-sm">Sair</button>
         </form>
-        <Link
-          href="/feedback"
-          className="hexis-button-secondary px-4 py-2 text-sm"
-        >
-          Send feedback
+        <Link href="/feedback" className="hexis-button-secondary px-4 py-2 text-sm">
+          Enviar feedback
         </Link>
       </div>
     </AppShell>

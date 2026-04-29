@@ -1,10 +1,18 @@
 import { completeOnboardingAction } from "@/modules/onboarding/presentation/onboarding.actions";
-import { readOnboardingTemplates } from "@/modules/onboarding/application/read-onboarding-data.query";
 import { trackProductEventSafely } from "@/modules/analytics/application/track-product-event-safe";
 import { PRODUCT_EVENT_NAME } from "@/modules/analytics/domain/product-event-catalog";
 import { CULTIVATION_GOAL_OPTIONS } from "@/modules/onboarding/domain/cultivation-goal";
+import { GoalSelector } from "@/modules/onboarding/presentation/components/goal-selector";
+import { CharacterSheetReveal } from "@/modules/onboarding/presentation/components/character-sheet-reveal";
 import { requireAppUser } from "@/shared/auth/route-guards";
 import { redirect } from "next/navigation";
+
+const REVEAL_ATTRIBUTES = [
+  { name: "Concentração", emoji: "🧠", level: 10 },
+  { name: "Energia", emoji: "⚡", level: 10 },
+  { name: "Disciplina", emoji: "🔥", level: 10 },
+  { name: "Resiliência", emoji: "🛡️", level: 10 },
+];
 
 async function OnboardingPage() {
   const user = await requireAppUser();
@@ -12,100 +20,80 @@ async function OnboardingPage() {
     redirect("/dashboard");
   }
 
-  const templates = await readOnboardingTemplates();
   await trackProductEventSafely({
     eventName: PRODUCT_EVENT_NAME.ONBOARDING_STARTED,
     userId: user.id,
-    properties: {
-      entryPoint: "onboarding_page",
-    },
+    properties: { entryPoint: "onboarding_page" },
   });
 
   return (
-    <div className="min-h-screen bg-[var(--color-background)] px-4 py-8 pb-28 sm:px-6 sm:py-10">
-      <div className="mx-auto max-w-5xl">
-        <p className="hexis-eyebrow">Step 2 of 2</p>
-        <h1 className="mt-2 text-2xl font-semibold sm:text-4xl">Set your first cultivation direction</h1>
-        <p className="mt-2 max-w-3xl text-sm text-[var(--color-muted)]">
-          Pick one current priority, then choose a starting template. You can refine this later.
-        </p>
-        <p className="mt-1 text-xs text-[var(--color-muted)]">About 1 minute to finish.</p>
-        <p className="mt-1 max-w-3xl text-xs text-[var(--color-muted)]">
-          Initial calibration only: baseline first, then goal and template emphasis.
+    <div
+      className="min-h-screen px-4 py-10 pb-28 sm:px-6 sm:py-14"
+      style={{ background: "var(--color-background)" }}
+    >
+      <div className="mx-auto max-w-4xl">
+        <p className="hexis-eyebrow">Criação de personagem</p>
+        <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">
+          O que você quer desenvolver?
+        </h1>
+        <p className="mt-2 max-w-2xl text-sm" style={{ color: "var(--color-muted)" }}>
+          Escolha até 4 objetivos. Cada ação que você registrar vai mover esses atributos.
+          Você pode mudar o foco depois.
         </p>
 
-        <form id="onboarding-form" action={completeOnboardingAction} className="mt-6 space-y-4 sm:space-y-6">
-          <section className="hexis-card p-4 sm:p-5">
-            <p className="hexis-eyebrow">Cultivation goal</p>
-            <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {CULTIVATION_GOAL_OPTIONS.map((goal, index) => (
-                <label key={goal.value} className="block cursor-pointer rounded-md border bg-[var(--color-background)] p-3 sm:p-4">
-                  <input
-                    type="radio"
-                    name="cultivationGoal"
-                    value={goal.value}
-                    defaultChecked={index === 0}
-                    className="mb-2"
-                  />
-                  <p className="text-sm font-medium">{goal.label}</p>
-                  <p className="mt-1 text-xs text-[var(--color-muted)]">{goal.description}</p>
-                </label>
-              ))}
-            </div>
+        <form id="onboarding-form" action={completeOnboardingAction} className="mt-8 space-y-6">
+          <section>
+            <GoalSelector goals={CULTIVATION_GOAL_OPTIONS} />
           </section>
 
-          <section className="hexis-card p-4 sm:p-5">
-            <p className="hexis-eyebrow">Starting template</p>
-            <div className="mt-3 grid gap-3 lg:grid-cols-3">
-              {templates.map((template) => (
-                <label key={template.key} className="block cursor-pointer rounded-md border bg-[var(--color-background)] p-4">
-                  <input
-                    type="radio"
-                    name="templateKey"
-                    value={template.key}
-                    defaultChecked={template.isDefault}
-                    className="mb-2"
-                  />
-                  <h2 className="text-lg font-semibold">{template.label}</h2>
-                  <p className="mt-1 text-xs text-[var(--color-muted)]">{template.description}</p>
-                  <ul className="mt-3 flex flex-wrap gap-1.5">
-                    {template.attributes.map((attribute) => (
-                      <li key={attribute} className="rounded-full border px-2 py-0.5 text-[11px] text-[var(--color-muted)]">
-                        {attribute}
-                      </li>
-                    ))}
-                  </ul>
-                </label>
-              ))}
-            </div>
+          <section className="hexis-card p-5">
+            <p className="hexis-eyebrow mb-4">Sua ficha inicial</p>
+            <p className="mb-4 text-xs" style={{ color: "var(--color-muted)" }}>
+              Atributos base de todos os personagens. Seus objetivos os direcionam mais rápido.
+            </p>
+            <CharacterSheetReveal attributes={REVEAL_ATTRIBUTES} />
           </section>
 
-          <section className="hexis-card p-4 sm:p-5">
-            <p className="hexis-eyebrow">How Hexis works</p>
-            <ul className="mt-2 grid gap-1.5 text-xs sm:text-sm text-[var(--color-muted)] md:grid-cols-2">
-              <li>Attributes respond to real evidence over time.</li>
-              <li>Current moves fastest, base slower, potential slowest.</li>
-              <li>Starting values are calibration anchors. First logs personalize the model.</li>
-              <li>Maintenance keeps current near base.</li>
-              <li>Neglect can reduce current and eventually erode base.</li>
-              <li>Recommendations help direct your next meaningful block.</li>
+          <section className="hexis-card p-4">
+            <p className="hexis-eyebrow mb-2">Como funciona</p>
+            <ul className="grid gap-1.5 text-xs sm:grid-cols-2" style={{ color: "var(--color-muted)" }}>
+              <li>Registre o que você fez — treino, leitura, meditação, qualquer coisa.</li>
+              <li>Seus atributos sobem com cada ação. Ações intensas sobem mais.</li>
+              <li>Sem registro por dias, os atributos começam a cair. Mantenha o ritmo.</li>
+              <li>Recomendações te dizem o que focar com base no estado atual.</li>
             </ul>
           </section>
 
           <div className="hidden justify-end pt-1 sm:flex">
-            <button className="min-h-11 rounded-md bg-[var(--color-foreground)] px-5 py-2.5 text-sm font-medium text-[var(--color-background)]">
-              Enter dashboard
+            <button
+              className="min-h-11 rounded-md px-6 py-2.5 text-sm font-semibold"
+              style={{
+                background: "var(--color-gold)",
+                color: "var(--color-gold-foreground)",
+              }}
+            >
+              Entrar no painel
             </button>
           </div>
         </form>
       </div>
 
-      <div className="fixed inset-x-0 bottom-0 z-20 border-t bg-[var(--color-surface)]/95 px-4 py-3 backdrop-blur sm:hidden">
+      <div
+        className="fixed inset-x-0 bottom-0 z-20 border-t px-4 py-3 backdrop-blur sm:hidden"
+        style={{
+          background: "oklch(0.18 0.008 260 / 0.95)",
+          borderColor: "var(--color-hairline)",
+        }}
+      >
         <button
           form="onboarding-form"
-          className="min-h-11 w-full rounded-md bg-[var(--color-foreground)] px-5 py-2.5 text-sm font-medium text-[var(--color-background)]"
+          className="min-h-11 w-full rounded-md text-sm font-semibold"
+          style={{
+            background: "var(--color-gold)",
+            color: "var(--color-gold-foreground)",
+          }}
         >
-          Enter dashboard
+          Entrar no painel
         </button>
       </div>
     </div>

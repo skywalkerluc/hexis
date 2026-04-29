@@ -1,24 +1,24 @@
 const STATUS_STYLE = {
   IMPROVING: {
-    label: "Improving",
+    label: "Em Alta",
     textColor: "var(--color-positive)",
     backgroundColor: "color-mix(in oklab, var(--color-positive) 18%, transparent)",
     borderColor: "color-mix(in oklab, var(--color-positive) 38%, transparent)",
   },
   STABLE: {
-    label: "Stable",
+    label: "Estável",
     textColor: "var(--color-muted)",
     backgroundColor: "color-mix(in oklab, var(--color-surface-raised) 80%, transparent)",
     borderColor: "var(--color-hairline)",
   },
   DECAYING: {
-    label: "Decaying",
+    label: "Em Declínio",
     textColor: "var(--color-warning)",
     backgroundColor: "color-mix(in oklab, var(--color-warning) 16%, transparent)",
     borderColor: "color-mix(in oklab, var(--color-warning) 38%, transparent)",
   },
   AT_RISK: {
-    label: "At Risk",
+    label: "Em Risco",
     textColor: "var(--color-critical)",
     backgroundColor: "color-mix(in oklab, var(--color-critical) 16%, transparent)",
     borderColor: "color-mix(in oklab, var(--color-critical) 38%, transparent)",

@@ -8,39 +8,40 @@ import {
   INITIAL_LOG_EVIDENCE_FORM_STATE,
   type LogEvidenceFormState,
 } from "@/modules/evidence/presentation/evidence.types";
+import { ActionFeedback } from "@/modules/evidence/presentation/components/action-feedback";
 
 const EVENT_TYPES = [
   {
     value: "TRAINING",
-    label: "Training",
-    description: "Deliberate work on skill strength and consistency.",
+    label: "Treino",
+    description: "Trabalho deliberado em força e consistência.",
   },
   {
     value: "PRACTICE",
-    label: "Practice",
-    description: "Short focused repetitions to retain sharpness.",
+    label: "Prática",
+    description: "Repetições curtas e focadas para manter a precisão.",
   },
   {
     value: "ROUTINE",
-    label: "Routine",
-    description: "Maintenance habits that prevent drift.",
+    label: "Rotina",
+    description: "Hábitos de manutenção que evitam o declínio.",
   },
   {
     value: "ACHIEVEMENT",
-    label: "Achievement",
-    description: "A meaningful result that confirms execution quality.",
+    label: "Conquista",
+    description: "Um resultado significativo que confirma qualidade.",
   },
   {
     value: "RECOVERY",
-    label: "Recovery",
-    description: "Restorative behavior that protects sustainable output.",
+    label: "Recuperação",
+    description: "Comportamento restaurador que protege o rendimento.",
   },
 ] as const;
 
 const INTENSITIES = [
-  { value: "LIGHT", label: "Light", description: "Low load, consistency-oriented." },
-  { value: "MODERATE", label: "Moderate", description: "Balanced training load." },
-  { value: "INTENSE", label: "Intense", description: "High effort and adaptation demand." },
+  { value: "LIGHT", label: "Leve", description: "Carga baixa, orientado à consistência." },
+  { value: "MODERATE", label: "Moderado", description: "Carga equilibrada." },
+  { value: "INTENSE", label: "Intenso", description: "Alto esforço e demanda de adaptação." },
 ] as const;
 
 const SUGGESTED_ATTRIBUTE_SLUGS: Record<string, readonly string[]> = {
@@ -55,7 +56,6 @@ const DEFAULT_EVENT_TYPE = "TRAINING";
 const DEFAULT_INTENSITY = "MODERATE";
 const IMPACT_PREVIEW_LIMIT = 5;
 const GOAL_SUGGESTION_LIMIT = 3;
-const SUCCESS_IMPACT_PREVIEW_LIMIT = 3;
 
 type GoalGuidance = {
   label: string;
@@ -73,8 +73,7 @@ function inlineErrorMessage(
   state: LogEvidenceFormState,
   field: keyof LogEvidenceFormState["fieldErrors"],
 ): string | null {
-  const message = state.fieldErrors[field];
-  return message ?? null;
+  return state.fieldErrors[field] ?? null;
 }
 
 export function LogEvidenceForm({
@@ -129,7 +128,7 @@ export function LogEvidenceForm({
     [attributes, selectedAttributeIds],
   );
 
-  const intensityLabel = INTENSITIES.find((item) => item.value === intensity)?.label ?? "Moderate";
+  const intensityLabel = INTENSITIES.find((item) => item.value === intensity)?.label ?? "Moderado";
   const occurredAtDefault = useMemo(() => formatForDateTimeLocal(new Date()), []);
   const hasOccurredAtError = Boolean(inlineErrorMessage(state, "occurredAt"));
   const hasAttributeError = Boolean(inlineErrorMessage(state, "attributes"));
@@ -137,9 +136,7 @@ export function LogEvidenceForm({
   const hasAnyFieldError = hasOccurredAtError || hasAttributeError || hasTitleError;
 
   useEffect(() => {
-    if (state.status !== "error") {
-      return;
-    }
+    if (state.status !== "error") return;
     if (hasOccurredAtError) {
       timingSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
@@ -185,62 +182,43 @@ export function LogEvidenceForm({
     setSelectedAttributeIds(new Set());
   }
 
+  function handleDismiss() {
+    formRef.current?.reset();
+    setSelectedAttributeIds(suggestedSelectionForEventType(initialEventType));
+    setEventType(initialEventType);
+    setIntensity(DEFAULT_INTENSITY);
+    setHideSuccess(true);
+  }
+
   return (
     <form ref={formRef} action={formAction} className="grid gap-5 lg:grid-cols-12 lg:gap-6">
       {state.formError ? (
-        <div className="lg:col-span-12 rounded-md border border-[var(--color-critical)] bg-[var(--color-surface-raised)] px-4 py-3 text-sm text-[var(--color-foreground)]">
+        <div
+          className="lg:col-span-12 rounded-md border px-4 py-3 text-sm"
+          style={{ borderColor: "var(--color-critical)", background: "var(--color-surface-raised)" }}
+        >
           <p>{state.formError}</p>
           {hasAnyFieldError ? (
-            <p className="mt-1 text-xs text-[var(--color-muted)]">Review the highlighted sections below.</p>
+            <p className="mt-1 text-xs" style={{ color: "var(--color-muted)" }}>
+              Revise as seções destacadas abaixo.
+            </p>
           ) : null}
         </div>
       ) : null}
 
       {state.status === "success" && state.successSummary && !hideSuccess ? (
-        <div className="lg:col-span-12 rounded-md border border-[var(--color-teal)] bg-[var(--color-surface-raised)] px-4 py-3">
-          <p className="text-sm font-medium">Evidence recorded</p>
-          <p className="mt-1 text-xs text-[var(--color-muted)]">
-            {state.successSummary.title} · {state.successSummary.eventType} · {state.successSummary.intensity} · {state.successSummary.occurredAt}
-          </p>
-          {state.successSummary.impacts.length > 0 ? (
-            <ul className="mt-2 space-y-1 text-xs text-[var(--color-muted)]">
-              {state.successSummary.impacts
-                .slice(0, SUCCESS_IMPACT_PREVIEW_LIMIT)
-                .map((impact: { attributeName: string; deltaCurrent: number }) => (
-                <li key={impact.attributeName}>
-                  {impact.attributeName}: {impact.deltaCurrent >= 0 ? "+" : ""}
-                  {impact.deltaCurrent.toFixed(2)} current
-                </li>
-              ))}
-            </ul>
-          ) : null}
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <Link href="/dashboard" className="hexis-button-secondary px-3 py-2 text-xs">
-              Continue to dashboard
-            </Link>
-            <button
-              type="button"
-              onClick={() => {
-                formRef.current?.reset();
-                setSelectedAttributeIds(suggestedSelectionForEventType(initialEventType));
-                setEventType(initialEventType);
-                setIntensity(DEFAULT_INTENSITY);
-                setHideSuccess(true);
-              }}
-              className="inline-flex min-h-10 items-center rounded-md border border-[var(--color-teal)] px-3 py-2 text-xs text-[var(--color-teal)] hover:bg-[var(--color-surface-raised)]"
-            >
-              Log another
-            </button>
-          </div>
-          <Link href="/history?logged=1" className="mt-2 inline-block text-xs text-[var(--color-muted)] underline underline-offset-2">
-            Review full history
-          </Link>
+        <div className="lg:col-span-12">
+          <ActionFeedback
+            intensity={intensity as "LIGHT" | "MODERATE" | "INTENSE"}
+            impacts={state.successSummary.impacts}
+            onDismiss={handleDismiss}
+          />
         </div>
       ) : null}
 
       <section className="space-y-4 lg:col-span-8 lg:space-y-5">
         <div className="hexis-card p-4 sm:p-5">
-          <p className="hexis-eyebrow">Evidence type</p>
+          <p className="hexis-eyebrow">Tipo de ação</p>
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
             {EVENT_TYPES.map((item) => {
               const active = eventType === item.value;
@@ -262,7 +240,9 @@ export function LogEvidenceForm({
                     className="sr-only"
                   />
                   <p className="text-sm font-medium">{item.label}</p>
-                  <p className="mt-1 text-xs text-[var(--color-muted)]">{item.description}</p>
+                  <p className="mt-1 text-xs" style={{ color: "var(--color-muted)" }}>
+                    {item.description}
+                  </p>
                 </label>
               );
             })}
@@ -279,32 +259,36 @@ export function LogEvidenceForm({
           }}
           ref={narrativeSectionRef}
         >
-          <p className="hexis-eyebrow">What happened</p>
+          <p className="hexis-eyebrow">O que você fez</p>
           <label className="mt-2 block">
-            <span className="text-xs uppercase tracking-wider text-[var(--color-muted)]">Title</span>
+            <span className="text-xs uppercase tracking-wider" style={{ color: "var(--color-muted)" }}>
+              Descrição
+            </span>
             <input
               required
               name="title"
-              className="mt-1.5 min-h-11 w-full rounded-md border bg-[var(--color-background)] px-3 py-2 text-sm"
-              placeholder="e.g. 90-minute deep work block"
+              className="mt-1.5 min-h-11 w-full rounded-md border px-3 py-2 text-sm"
+              style={{ background: "var(--color-background)" }}
+              placeholder="ex: 1 hora de treino funcional"
             />
             {inlineErrorMessage(state, "title") ? (
-              <p className="mt-1 text-xs text-[var(--color-critical)]">
+              <p className="mt-1 text-xs" style={{ color: "var(--color-critical)" }}>
                 {inlineErrorMessage(state, "title")}
               </p>
             ) : null}
           </label>
 
-          <details className="mt-4 rounded-md border bg-[var(--color-background)] p-3">
-            <summary className="cursor-pointer text-xs uppercase tracking-wider text-[var(--color-muted)]">
-              Add notes (optional)
+          <details className="mt-4 rounded-md border p-3" style={{ background: "var(--color-background)" }}>
+            <summary className="cursor-pointer text-xs uppercase tracking-wider" style={{ color: "var(--color-muted)" }}>
+              Adicionar notas (opcional)
             </summary>
             <label className="mt-3 block">
               <textarea
                 name="notes"
                 rows={4}
-                className="w-full rounded-md border bg-[var(--color-background)] px-3 py-2 text-sm"
-                placeholder="What made this work, what to repeat next time"
+                className="w-full rounded-md border px-3 py-2 text-sm"
+                style={{ background: "var(--color-background)" }}
+                placeholder="O que funcionou, o que repetir"
               />
             </label>
           </details>
@@ -321,12 +305,14 @@ export function LogEvidenceForm({
           ref={timingSectionRef}
         >
           <details>
-            <summary className="cursor-pointer text-xs uppercase tracking-wider text-[var(--color-muted)]">
-              Adjust load and timing (optional)
+            <summary className="cursor-pointer text-xs uppercase tracking-wider" style={{ color: "var(--color-muted)" }}>
+              Ajustar carga e horário (opcional)
             </summary>
             <div className="mt-3 grid gap-4 sm:grid-cols-2">
               <div>
-                <span className="text-xs uppercase tracking-wider text-[var(--color-muted)]">Intensity</span>
+                <span className="text-xs uppercase tracking-wider" style={{ color: "var(--color-muted)" }}>
+                  Intensidade
+                </span>
                 <div className="mt-1.5 grid grid-cols-3 gap-2">
                   {INTENSITIES.map((item) => {
                     const active = intensity === item.value;
@@ -353,22 +339,25 @@ export function LogEvidenceForm({
                     );
                   })}
                 </div>
-                <p className="mt-2 text-xs text-[var(--color-muted)]">
+                <p className="mt-2 text-xs" style={{ color: "var(--color-muted)" }}>
                   {INTENSITIES.find((item) => item.value === intensity)?.description}
                 </p>
               </div>
 
               <label>
-                <span className="text-xs uppercase tracking-wider text-[var(--color-muted)]">Occurred at</span>
+                <span className="text-xs uppercase tracking-wider" style={{ color: "var(--color-muted)" }}>
+                  Quando ocorreu
+                </span>
                 <input
                   required
                   name="occurredAt"
                   type="datetime-local"
                   defaultValue={occurredAtDefault}
-                  className="mt-1.5 min-h-11 w-full rounded-md border bg-[var(--color-background)] px-3 py-2 text-sm"
+                  className="mt-1.5 min-h-11 w-full rounded-md border px-3 py-2 text-sm"
+                  style={{ background: "var(--color-background)" }}
                 />
                 {inlineErrorMessage(state, "occurredAt") ? (
-                  <p className="mt-1 text-xs text-[var(--color-critical)]">
+                  <p className="mt-1 text-xs" style={{ color: "var(--color-critical)" }}>
                     {inlineErrorMessage(state, "occurredAt")}
                   </p>
                 ) : null}
@@ -388,37 +377,41 @@ export function LogEvidenceForm({
           ref={attributesSectionRef}
         >
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="hexis-eyebrow">Affected attributes</p>
+            <p className="hexis-eyebrow">Habilidades afetadas</p>
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={applySuggestedSelection}
                 className="hexis-button-secondary px-2.5 py-1.5 text-xs"
               >
-                Use suggested
+                Usar sugestão
               </button>
               <button
                 type="button"
                 onClick={clearSelection}
                 className="hexis-button-secondary px-2.5 py-1.5 text-xs"
               >
-                Clear
+                Limpar
               </button>
             </div>
           </div>
-          <p className="mt-2 text-xs text-[var(--color-muted)]">
-            Suggested for {EVENT_TYPES.find((item) => item.value === eventType)?.label}: {attributes
+          <p className="mt-2 text-xs" style={{ color: "var(--color-muted)" }}>
+            Sugerido para {EVENT_TYPES.find((item) => item.value === eventType)?.label}:{" "}
+            {attributes
               .filter((attribute) => suggestionSet.has(attribute.slug))
               .map((attribute) => attribute.name)
-              .join(", ") || "No suggestions"}
+              .join(", ") || "Sem sugestões"}
           </p>
           {goalGuidance ? (
-            <p className="mt-1 text-xs text-[var(--color-muted)]">
-              Goal priority ({goalGuidance.label}): {attributes
-                .filter((attribute) => goalGuidance.focusAttributeSlugs.includes(attribute.slug))
+            <p className="mt-1 text-xs" style={{ color: "var(--color-muted)" }}>
+              Prioridade do objetivo ({goalGuidance.label}):{" "}
+              {attributes
+                .filter((attribute) =>
+                  goalGuidance.focusAttributeSlugs.includes(attribute.slug),
+                )
                 .slice(0, GOAL_SUGGESTION_LIMIT)
                 .map((attribute) => attribute.name)
-                .join(", ") || "No direct mapping"}
+                .join(", ") || "Sem mapeamento direto"}
             </p>
           ) : null}
 
@@ -438,7 +431,12 @@ export function LogEvidenceForm({
                   <span className="text-sm">
                     {attribute.name}
                     {suggested ? (
-                      <span className="ml-1 text-[10px] uppercase tracking-wide text-[var(--color-teal)]">suggested</span>
+                      <span
+                        className="ml-1 text-[10px] uppercase tracking-wide"
+                        style={{ color: "var(--color-teal)" }}
+                      >
+                        sugerido
+                      </span>
                     ) : null}
                   </span>
                   <input
@@ -454,7 +452,7 @@ export function LogEvidenceForm({
             })}
           </div>
           {inlineErrorMessage(state, "attributes") ? (
-            <p className="mt-2 text-xs text-[var(--color-critical)]">
+            <p className="mt-2 text-xs" style={{ color: "var(--color-critical)" }}>
               {inlineErrorMessage(state, "attributes")}
             </p>
           ) : null}
@@ -463,39 +461,41 @@ export function LogEvidenceForm({
         <div className="lg:hidden">
           <button
             disabled={selectedAttributes.length === 0 || isPending}
-            className="min-h-11 w-full rounded-md bg-[var(--color-foreground)] px-4 py-3 text-sm font-medium text-[var(--color-background)] disabled:cursor-not-allowed disabled:opacity-40"
+            className="min-h-11 w-full rounded-md px-4 py-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-40"
+            style={{ background: "var(--color-foreground)", color: "var(--color-background)" }}
           >
-            {isPending ? "Saving..." : "Save log"}
+            {isPending ? "Salvando..." : "Registrar"}
           </button>
         </div>
       </section>
 
       <aside className="lg:col-span-4">
         <div className="hexis-card p-4 sm:p-5 lg:sticky lg:top-24">
-          <p className="hexis-eyebrow">Impact summary</p>
-          <p className="mt-2 text-sm text-[var(--color-muted)]">
+          <p className="hexis-eyebrow">Resumo de impacto</p>
+          <p className="mt-2 text-sm" style={{ color: "var(--color-muted)" }}>
             {selectedAttributes.length === 0
-              ? "Select at least one attribute to log meaningful evidence."
-              : `${EVENT_TYPES.find((item) => item.value === eventType)?.label} · ${intensityLabel} · ${selectedAttributes.length} attribute(s).`}
+              ? "Selecione ao menos uma habilidade."
+              : `${EVENT_TYPES.find((item) => item.value === eventType)?.label} · ${intensityLabel} · ${selectedAttributes.length} habilidade(s).`}
           </p>
           {selectedAttributes.length > 0 ? (
-            <ul className="mt-3 space-y-1.5 text-xs text-[var(--color-muted)]">
+            <ul className="mt-3 space-y-1.5 text-xs" style={{ color: "var(--color-muted)" }}>
               {selectedAttributes.slice(0, IMPACT_PREVIEW_LIMIT).map((attribute) => (
                 <li key={attribute.userAttributeId}>{attribute.name}</li>
               ))}
               {selectedAttributes.length > IMPACT_PREVIEW_LIMIT ? (
-                <li>+{selectedAttributes.length - IMPACT_PREVIEW_LIMIT} more</li>
+                <li>+{selectedAttributes.length - IMPACT_PREVIEW_LIMIT} mais</li>
               ) : null}
             </ul>
           ) : null}
-          <p className="mt-4 text-xs text-[var(--color-muted)]">
-            Submission persists event, attribute impacts and explainable history in one atomic flow.
+          <p className="mt-4 text-xs" style={{ color: "var(--color-muted)" }}>
+            O registro atualiza seus atributos permanentemente.
           </p>
           <button
             disabled={selectedAttributes.length === 0 || isPending}
-            className="mt-5 hidden min-h-11 w-full rounded-md bg-[var(--color-foreground)] px-4 py-3 text-sm font-medium text-[var(--color-background)] disabled:cursor-not-allowed disabled:opacity-40 lg:block"
+            className="mt-5 hidden min-h-11 w-full rounded-md px-4 py-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-40 lg:block"
+            style={{ background: "var(--color-foreground)", color: "var(--color-background)" }}
           >
-            {isPending ? "Saving..." : "Save log"}
+            {isPending ? "Salvando..." : "Registrar"}
           </button>
         </div>
       </aside>
