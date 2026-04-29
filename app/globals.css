@@ -74,3 +74,33 @@ button {
   background: var(--color-surface);
   color: var(--color-foreground);
 }
+
+/* Animações RPG */
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 6px 1px oklch(0.78 0.09 85 / 0.4); }
+  50% { box-shadow: 0 0 14px 3px oklch(0.78 0.09 85 / 0.7); }
+}
+
+@keyframes particle-float {
+  0% { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(-32px) scale(0.5); }
+}
+
+@keyframes screen-flash {
+  0% { opacity: 0; }
+  30% { opacity: 0.15; }
+  100% { opacity: 0; }
+}
+
+@keyframes slide-in-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-slide-in-up {
+  animation: slide-in-up 0.35s ease-out forwards;
+}
+
+.animate-glow-pulse {
+  animation: glow-pulse 2s ease-in-out infinite;
+}
