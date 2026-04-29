@@ -20,9 +20,7 @@ async function WeeklyReviewPage() {
   await trackProductEventSafely({
     eventName: PRODUCT_EVENT_NAME.WEEKLY_REVIEW_VIEWED,
     userId: user.id,
-    properties: {
-      source: "weekly_review",
-    },
+    properties: { source: "weekly_review" },
   });
   await trackProductEventSafely({
     eventName: PRODUCT_EVENT_NAME.WEEKLY_EXPLANATION_VIEWED,
@@ -32,6 +30,7 @@ async function WeeklyReviewPage() {
       declinedCount: retentionView.weeklyReview.declinedCount,
     },
   });
+
   const primaryRecommendation = recommendations[0];
   const primarySuggestedAction = retentionView.suggestedActions[0];
   const weeklyTakeaway = buildWeeklyTakeaway({
@@ -40,58 +39,56 @@ async function WeeklyReviewPage() {
     stableCount: retentionView.weeklyReview.stableCount,
     needsAttentionCount: retentionView.weeklyReview.needsAttentionCount,
   });
+
   if (primaryRecommendation) {
     await trackProductEventSafely({
       eventName: PRODUCT_EVENT_NAME.RECOMMENDATION_RATIONALE_VIEWED,
       userId: user.id,
-      properties: {
-        recommendationId: primaryRecommendation.id,
-        surface: "weekly_review",
-      },
+      properties: { recommendationId: primaryRecommendation.id, surface: "weekly_review" },
     });
   }
 
   return (
     <AppShell
-      title="Weekly review"
-      eyebrow="Retention"
+      title="Revisão semanal"
+      eyebrow="Retenção"
       currentPath="/weekly-review"
       displayName={user.profile?.displayName ?? user.email}
     >
       <section className="hexis-card p-5 sm:p-6">
-        <p className="hexis-eyebrow">Week at a glance</p>
+        <p className="hexis-eyebrow">A semana em resumo</p>
         <div className="mt-3 grid gap-3 sm:grid-cols-3">
-          <Metric label="Improved" value={`${retentionView.weeklyReview.improvedCount}`} />
-          <Metric label="Declined" value={`${retentionView.weeklyReview.declinedCount}`} />
-          <Metric label="Stable" value={`${retentionView.weeklyReview.stableCount}`} />
+          <Metric label="Melhorou" value={`${retentionView.weeklyReview.improvedCount}`} />
+          <Metric label="Caiu" value={`${retentionView.weeklyReview.declinedCount}`} />
+          <Metric label="Estável" value={`${retentionView.weeklyReview.stableCount}`} />
         </div>
-        <p className="mt-3 text-sm text-[var(--color-muted)]">
-          {retentionView.weeklyReview.evidenceLoggedCount} evidence log(s), {" "}
-          {retentionView.weeklyReview.recommendationUpdates} recommendation update(s), {" "}
-          {retentionView.weeklyReview.needsAttentionCount} attribute(s) currently need attention.
+        <p className="mt-3 text-sm" style={{ color: "var(--color-muted)" }}>
+          {retentionView.weeklyReview.evidenceLoggedCount} ação(ões) registrada(s),{" "}
+          {retentionView.weeklyReview.recommendationUpdates} atualização(ões) de missão,{" "}
+          {retentionView.weeklyReview.needsAttentionCount} atributo(s) precisam de atenção.
         </p>
-        <p className="mt-2 text-sm text-[var(--color-muted)]">
+        <p className="mt-2 text-sm" style={{ color: "var(--color-muted)" }}>
           {retentionView.weeklyReview.interpretation}
         </p>
-        <div className="mt-4 rounded-md border bg-[var(--color-background)] p-3">
-          <p className="hexis-eyebrow">Main takeaway</p>
+        <div className="mt-4 rounded-md border p-3" style={{ background: "var(--color-background)" }}>
+          <p className="hexis-eyebrow">Conclusão principal</p>
           <p className="mt-1 text-sm">{weeklyTakeaway}</p>
         </div>
       </section>
 
       <section className="hexis-card mt-6 p-4 sm:p-5">
-        <p className="hexis-eyebrow">Next best step</p>
+        <p className="hexis-eyebrow">Próximo melhor passo</p>
         {primarySuggestedAction ? (
-          <div className="mt-3 rounded-md border bg-[var(--color-background)] p-3">
+          <div className="mt-3 rounded-md border p-3" style={{ background: "var(--color-background)" }}>
             <p className="text-sm font-medium">{primarySuggestedAction.title}</p>
-            <p className="mt-1 text-xs text-[var(--color-muted)]">{primarySuggestedAction.description}</p>
+            <p className="mt-1 text-xs" style={{ color: "var(--color-muted)" }}>
+              {primarySuggestedAction.description}
+            </p>
             <form action={runRetentionAction} className="mt-3">
               <input type="hidden" name="kind" value="SUGGESTED_ACTION" />
               <input type="hidden" name="actionKey" value={primarySuggestedAction.key} />
               <input type="hidden" name="path" value={primarySuggestedAction.href} />
-              <button className="hexis-button-secondary px-3 py-2 text-sm">
-                Open
-              </button>
+              <button className="hexis-button-secondary px-3 py-2 text-sm">Abrir</button>
             </form>
           </div>
         ) : primaryRecommendation ? (
@@ -103,9 +100,9 @@ async function WeeklyReviewPage() {
             />
           </ul>
         ) : (
-          <div className="mt-3 rounded-md border bg-[var(--color-background)] p-3">
-            <p className="text-sm text-[var(--color-muted)]">
-              No urgent action this week. Log one focused block to keep momentum visible.
+          <div className="mt-3 rounded-md border p-3" style={{ background: "var(--color-background)" }}>
+            <p className="text-sm" style={{ color: "var(--color-muted)" }}>
+              Nenhuma ação urgente esta semana. Registre um bloco focado para manter o momentum visível.
             </p>
           </div>
         )}
@@ -113,18 +110,22 @@ async function WeeklyReviewPage() {
 
       <section className="mt-6 grid gap-4 lg:grid-cols-2">
         <div className="hexis-card p-4 sm:p-5">
-          <p className="hexis-eyebrow">What got better</p>
+          <p className="hexis-eyebrow">O que melhorou</p>
           {retentionView.weeklyReview.improved.length === 0 ? (
-            <p className="mt-3 text-sm text-[var(--color-muted)]">
-              No clear gain yet. A short reinforcement log can start this trend.
+            <p className="mt-3 text-sm" style={{ color: "var(--color-muted)" }}>
+              Nenhum ganho claro ainda. Um registro de reforço curto pode iniciar essa tendência.
             </p>
           ) : (
             <ul className="mt-3 space-y-2">
               {retentionView.weeklyReview.improved.map((attribute) => (
-                <li key={attribute.userAttributeId} className="rounded-md border bg-[var(--color-background)] px-3 py-2">
+                <li
+                  key={attribute.userAttributeId}
+                  className="rounded-md border px-3 py-2"
+                  style={{ background: "var(--color-background)" }}
+                >
                   <p className="text-sm font-medium">{attribute.name}</p>
-                  <p className="mt-1 text-xs text-[var(--color-muted)]">
-                    +{attribute.deltaCurrent.toFixed(2)} current · now {attribute.currentValue.toFixed(1)}
+                  <p className="mt-1 text-xs" style={{ color: "var(--color-muted)" }}>
+                    +{attribute.deltaCurrent.toFixed(2)} atual · agora {attribute.currentValue.toFixed(1)}
                   </p>
                 </li>
               ))}
@@ -133,16 +134,22 @@ async function WeeklyReviewPage() {
         </div>
 
         <div className="hexis-card p-4 sm:p-5">
-          <p className="hexis-eyebrow">What slipped</p>
+          <p className="hexis-eyebrow">O que caiu</p>
           {retentionView.weeklyReview.declined.length === 0 ? (
-            <p className="mt-3 text-sm text-[var(--color-muted)]">No meaningful decline detected this week.</p>
+            <p className="mt-3 text-sm" style={{ color: "var(--color-muted)" }}>
+              Nenhum declínio significativo detectado esta semana.
+            </p>
           ) : (
             <ul className="mt-3 space-y-2">
               {retentionView.weeklyReview.declined.map((attribute) => (
-                <li key={attribute.userAttributeId} className="rounded-md border bg-[var(--color-background)] px-3 py-2">
+                <li
+                  key={attribute.userAttributeId}
+                  className="rounded-md border px-3 py-2"
+                  style={{ background: "var(--color-background)" }}
+                >
                   <p className="text-sm font-medium">{attribute.name}</p>
-                  <p className="mt-1 text-xs text-[var(--color-muted)]">
-                    {attribute.deltaCurrent.toFixed(2)} current · now {attribute.currentValue.toFixed(1)}
+                  <p className="mt-1 text-xs" style={{ color: "var(--color-muted)" }}>
+                    {attribute.deltaCurrent.toFixed(2)} atual · agora {attribute.currentValue.toFixed(1)}
                   </p>
                 </li>
               ))}
@@ -152,17 +159,20 @@ async function WeeklyReviewPage() {
       </section>
 
       <details className="hexis-card mt-6 p-4 sm:p-5">
-        <summary className="cursor-pointer text-sm font-medium">Adjust weekly focus</summary>
-        <p className="mt-2 text-xs text-[var(--color-muted)]">
-          Keep this narrow: one template + one weekly focus.
+        <summary className="cursor-pointer text-sm font-medium">Ajustar foco semanal</summary>
+        <p className="mt-2 text-xs" style={{ color: "var(--color-muted)" }}>
+          Mantenha simples: uma rotina + um foco semanal.
         </p>
         <form action={updateLoopSettingsAction} className="mt-4 grid gap-4 lg:grid-cols-2">
           <label>
-            <span className="text-xs uppercase tracking-wide text-[var(--color-muted)]">Template</span>
+            <span className="text-xs uppercase tracking-wide" style={{ color: "var(--color-muted)" }}>
+              Rotina
+            </span>
             <select
               name="templateKey"
               defaultValue={userLoop.template.key}
-              className="mt-1.5 w-full rounded-md border bg-[var(--color-background)] px-3 py-2 text-sm"
+              className="mt-1.5 w-full rounded-md border px-3 py-2 text-sm"
+              style={{ background: "var(--color-background)" }}
             >
               {userLoop.templateOptions.map((template) => (
                 <option key={template.key} value={template.key}>
@@ -172,14 +182,17 @@ async function WeeklyReviewPage() {
             </select>
           </label>
           <label>
-            <span className="text-xs uppercase tracking-wide text-[var(--color-muted)]">Weekly focus</span>
+            <span className="text-xs uppercase tracking-wide" style={{ color: "var(--color-muted)" }}>
+              Foco semanal
+            </span>
             <select
               name="weeklyFocusAttributeDefinitionId"
               defaultValue={
                 userLoop.weeklyFocus?.attributeDefinitionId ??
                 userLoop.weeklyFocusOptions[0]?.attributeDefinitionId
               }
-              className="mt-1.5 w-full rounded-md border bg-[var(--color-background)] px-3 py-2 text-sm"
+              className="mt-1.5 w-full rounded-md border px-3 py-2 text-sm"
+              style={{ background: "var(--color-background)" }}
             >
               {userLoop.weeklyFocusOptions.map((attribute) => (
                 <option key={attribute.attributeDefinitionId} value={attribute.attributeDefinitionId}>
@@ -190,7 +203,7 @@ async function WeeklyReviewPage() {
           </label>
           <div className="lg:col-span-2">
             <button className="hexis-button-secondary px-4 py-2 text-sm">
-              Save weekly focus
+              Salvar foco
             </button>
           </div>
         </form>
@@ -206,20 +219,20 @@ function buildWeeklyTakeaway(input: {
   needsAttentionCount: number;
 }): string {
   if (input.declinedCount > input.improvedCount) {
-    return `${input.declinedCount} area(s) slipped. This week is about stabilization first.`;
+    return `${input.declinedCount} área(s) caíram. Esta semana é sobre estabilização primeiro.`;
   }
   if (input.improvedCount > 0 && input.declinedCount === 0) {
-    return `${input.improvedCount} area(s) improved with limited drift. Reinforce the same cadence.`;
+    return `${input.improvedCount} área(s) melhoraram sem declínio. Reforce o mesmo ritmo.`;
   }
   if (input.stableCount > 0 && input.needsAttentionCount === 0) {
-    return "Most attributes stayed stable. Keep one focused maintenance block visible this week.";
+    return "A maioria dos atributos ficou estável. Mantenha um bloco de manutenção focado visível esta semana.";
   }
-  return "Mixed week. Keep one clear focus and log one meaningful block early.";
+  return "Semana mista. Mantenha um foco claro e registre um bloco significativo logo cedo.";
 }
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-md border bg-[var(--color-background)] p-3">
+    <div className="rounded-md border p-3" style={{ background: "var(--color-background)" }}>
       <p className="hexis-eyebrow">{label}</p>
       <p className="mt-1.5 text-xl font-semibold">{value}</p>
     </div>

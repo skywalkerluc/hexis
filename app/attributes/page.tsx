@@ -11,14 +11,14 @@ async function AttributesPage() {
 
   return (
     <AppShell
-      title="Attributes"
-      eyebrow="Library"
+      title="Habilidades"
+      eyebrow="Ficha"
       currentPath="/attributes"
       displayName={user.profile?.displayName ?? user.email}
     >
-      <p className="max-w-2xl text-sm text-[var(--color-muted)]">
-        Each attribute has independent dynamics: current moves fastest, base moves slower, potential
-        moves slowest.
+      <p className="max-w-2xl text-sm" style={{ color: "var(--color-muted)" }}>
+        Cada habilidade tem dinâmicas independentes: atual move mais rápido, base move mais devagar,
+        potencial move mais lento.
       </p>
       <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {attributes.map((attribute) => (

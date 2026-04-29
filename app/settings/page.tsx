@@ -12,64 +12,57 @@ async function SettingsPage() {
 
   return (
     <AppShell
-      title="Settings"
-      eyebrow="Account"
+      title="Configurações"
+      eyebrow="Conta"
       currentPath="/settings"
       displayName={user.profile?.displayName ?? user.email}
     >
       <div className="space-y-5">
         <section className="hexis-card p-6">
-          <h2 className="text-lg font-semibold">Account shortcuts</h2>
+          <h2 className="text-lg font-semibold">Atalhos da conta</h2>
           <div className="mt-3 flex flex-wrap gap-2">
             <Link href="/profile" className="hexis-button-secondary px-3 py-2 text-sm">
-              Edit profile
+              Editar perfil
             </Link>
             <Link href="/history" className="hexis-button-secondary px-3 py-2 text-sm">
-              View history
+              Ver histórico
             </Link>
             <form action={logoutAction}>
               <button className="hexis-button-secondary px-3 py-2 text-sm">
-                Sign out
+                Sair
               </button>
             </form>
           </div>
         </section>
 
         <section className="hexis-card p-6">
-          <h2 className="text-lg font-semibold">Account status</h2>
-          <p className="mt-2 text-sm text-[var(--color-muted)]">
-            Current session: {hasSessionCookie ? "active on this device" : "not active"}.
+          <h2 className="text-lg font-semibold">Status da conta</h2>
+          <p className="mt-2 text-sm" style={{ color: "var(--color-muted)" }}>
+            Sessão atual: {hasSessionCookie ? "ativa neste dispositivo" : "não ativa"}.
           </p>
-          <p className="mt-2 text-sm text-[var(--color-muted)]">
-            Need account help? Use feedback to request password reset or session support.
+          <p className="mt-2 text-sm" style={{ color: "var(--color-muted)" }}>
+            Precisa de ajuda com a conta? Use o feedback para solicitar redefinição de senha.
           </p>
           <Link
             href="/feedback?from=/settings"
             className="hexis-button-secondary mt-3 px-3 py-2 text-sm"
           >
-            Request account help
+            Solicitar ajuda
           </Link>
         </section>
 
         <section className="hexis-card p-6">
-          <h2 className="text-lg font-semibold">Product feedback</h2>
-          <p className="mt-2 text-sm text-[var(--color-muted)]">
-            Share friction, ambiguity, or improvement ideas linked to this screen.
+          <h2 className="text-lg font-semibold">Feedback do produto</h2>
+          <p className="mt-2 text-sm" style={{ color: "var(--color-muted)" }}>
+            Compartilhe atrito, dúvidas ou ideias de melhoria.
           </p>
           <Link
             href="/feedback?from=/settings"
             className="hexis-button-secondary mt-3 px-3 py-2 text-sm"
           >
-            Open feedback form
+            Abrir formulário de feedback
           </Link>
         </section>
-
-        <details className="hexis-card p-6">
-          <summary className="cursor-pointer text-sm font-medium">Release readiness notes</summary>
-          <p className="mt-3 text-sm text-[var(--color-muted)]">
-            Operational checklist and background readiness notes are kept in <code>docs/v1-readiness-checklist.md</code>.
-          </p>
-        </details>
       </div>
     </AppShell>
   );
